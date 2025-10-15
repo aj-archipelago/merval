@@ -1,0 +1,60 @@
+{
+  "name": "merval",
+  "version": "0.1.0",
+  "description": "The world's first zero-dependency Mermaid diagram validator. Instant syntax validation without CLI calls or heavy dependencies.",
+  "mermaidCompatibility": {
+    "validatedAgainst": "11.12.0",
+    "lastValidated": "2024-10-15",
+    "cliVersion": "@mermaid-js/mermaid-cli@11.12.0"
+  },
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "npm run build && node test-runner.js",
+    "test:watch": "npm run build && node --watch test-runner.js",
+    "test:flowchart": "npm run build && node test-runner.js flowchart",
+    "test:sequence": "npm run build && node test-runner.js sequence",
+    "test:other": "npm run build && node test-runner.js other-diagrams",
+    "test:error": "npm run build && node test-runner.js error-handling",
+    "test:integration": "npm run build && node test-runner.js integration",
+    "test:cli": "npm run build && node src/test/cli-validation/validate-against-cli.js",
+    "test:coverage": "npm run build && node test-runner.js && echo 'Coverage reporting not yet implemented'",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts",
+    "update-version": "node scripts/update-version.js"
+  },
+  "keywords": [
+    "mermaid",
+    "validator",
+    "syntax",
+    "diagram",
+    "parser",
+    "validation",
+    "zero-dependency",
+    "instant",
+    "cli-free"
+  ],
+  "author": "AJ Archipelago",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aj-archipelago/merval.git"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0",
+    "@mermaid-js/mermaid-cli": "^11.12.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
