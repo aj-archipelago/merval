@@ -32,19 +32,19 @@ Tired of installing `@mermaid-js/mermaid-cli` and its 400+ dependencies (Puppete
 
 ```bash
 # Using npm
-npm install merval
+npm install @aj-archipelago/merval
 
 # Using yarn  
-yarn add merval
+yarn add @aj-archipelago/merval
 
 # Using pnpm
-pnpm add merval
+pnpm add @aj-archipelago/merval
 ```
 
 ## 🚀 Quick Start
 
 ```javascript
-import { validateMermaid } from 'merval';
+import { validateMermaid } from '@aj-archipelago/merval';
 
 // Instant validation - no CLI, no dependencies!
 const result = validateMermaid(`
@@ -68,7 +68,7 @@ This validator is tested against **Mermaid CLI v11.12.0** to ensure 100% compati
 ### Version Information
 
 ```javascript
-import { getMermaidVersionInfo, isMermaidVersionSupported } from 'merval';
+import { getMermaidVersionInfo, isMermaidVersionSupported } from '@aj-archipelago/merval';
 
 // Get version compatibility info
 const versionInfo = getMermaidVersionInfo();
@@ -87,7 +87,7 @@ console.log(isMermaidVersionSupported("12.0.0"));   // false
 ### Version-Aware Validation
 
 ```javascript
-import { validateMermaid } from 'merval';
+import { validateMermaid } from '@aj-archipelago/merval';
 
 // Basic validation (no version check)
 const result = validateMermaid(mermaidCode);
@@ -121,7 +121,7 @@ This script will:
 ## API
 
 ```javascript
-import { validateMermaid, isValidMermaid, getDiagramType } from 'merval';
+import { validateMermaid, isValidMermaid, getDiagramType } from '@aj-archipelago/merval';
 
 // Basic validation
 const result = validateMermaid(`

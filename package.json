@@ -1,5 +1,5 @@
 {
-  "name": "merval",
+  "name": "@aj-archipelago/merval",
   "version": "0.1.0",
   "description": "The world's first zero-dependency Mermaid diagram validator. Instant syntax validation without CLI calls or heavy dependencies.",
   "mermaidCompatibility": {
@@ -23,7 +23,8 @@
     "test:coverage": "npm run build && node test-runner.js && echo 'Coverage reporting not yet implemented'",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write src/**/*.ts",
-    "update-version": "node scripts/update-version.js"
+    "update-version": "node scripts/update-version.js",
+    "release": "release-it"
   },
   "keywords": [
     "mermaid",
@@ -56,5 +57,22 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "release-it": {
+    "git": {
+      "commitMessage": "chore: release v${version}",
+      "tagName": "v${version}"
+    },
+    "github": {
+      "release": true,
+      "releaseName": "Release v${version}",
+      "releaseNotes": "See CHANGELOG.md for details"
+    },
+    "npm": {
+      "publish": true
+    },
+    "hooks": {
+      "before:init": ["npm run build", "npm test"]
+    }
   }
 }
