@@ -1,6 +1,6 @@
 {
   "name": "@aj-archipelago/merval",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "The world's first zero-dependency Mermaid diagram validator. Instant syntax validation without CLI calls or heavy dependencies.",
   "mermaidCompatibility": {
     "validatedAgainst": "11.12.0",
@@ -37,14 +37,17 @@
     "instant",
     "cli-free"
   ],
-  "author": "AJ Archipelago",
+  "author": {
+    "name": "AJ Archipelago",
+    "url": "https://github.com/aj-archipelago"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/aj-archipelago/merval.git"
   },
   "files": [
-    "dist/**/*",
+    "dist",
     "README.md",
     "LICENSE"
   ],
@@ -58,21 +61,11 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "release-it": {
-    "git": {
-      "commitMessage": "chore: release v${version}",
-      "tagName": "v${version}"
-    },
-    "github": {
-      "release": true,
-      "releaseName": "Release v${version}",
-      "releaseNotes": "See CHANGELOG.md for details"
-    },
-    "npm": {
-      "publish": true
-    },
-    "hooks": {
-      "before:init": ["npm run build", "npm test"]
-    }
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/aj-archipelago/merval#readme",
+  "bugs": {
+    "url": "https://github.com/aj-archipelago/merval/issues"
   }
 }
