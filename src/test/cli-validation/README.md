@@ -37,6 +37,9 @@ The CLI validation tests cover:
 - **State**: State diagrams
 - **Pie**: Pie charts
 - **XY-chart**: XY charts
+- **Block**: Block diagrams
+- **Styling**: Styling directives (classDef, linkStyle, style, click, direction, note) across diagram types
+- **Node-shapes**: Node shape syntax ([rect], (round), {diamond}, ((double-circle))) and validation
 - **Syntax-error**: Invalid syntax that should be rejected
 - **Edge-case**: Edge cases like empty input
 

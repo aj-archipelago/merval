@@ -204,6 +204,43 @@ export const errorHandlingTests = createTestSuite(
       { expectedDiagramType: 'flowchart' }
     ),
 
+    // Identifier validation edge cases
+    createTestCase(
+      'Flowchart with unquoted identifiers containing apostrophes',
+      `flowchart TD
+        A[Jason's Day] --> B[Alice's Night]`,
+      true,
+      { expectedDiagramType: 'flowchart' }
+    ),
+
+    createTestCase(
+      'Flowchart with unquoted identifiers containing ampersands',
+      `flowchart TD
+        A[Sales & Marketing] --> B[Research & Development]`,
+      true,
+      { expectedDiagramType: 'flowchart' }
+    ),
+
+    createTestCase(
+      'Sequence diagram with unquoted participants containing special characters',
+      `sequenceDiagram
+        participant Jason's Team
+        participant Alice & Bob
+        Jason's Team->>Alice & Bob: Hello`,
+      true,
+      { expectedDiagramType: 'sequence' }
+    ),
+
+    createTestCase(
+      'Sequence diagram with quoted participants containing special characters',
+      `sequenceDiagram
+        participant "Jason's Team"
+        participant "Alice & Bob"
+        "Jason's Team"->>"Alice & Bob": Hello`,
+      true,
+      { expectedDiagramType: 'sequence' }
+    ),
+
     // Very long inputs
     createTestCase(
       'Very long flowchart',

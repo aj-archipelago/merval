@@ -128,6 +128,174 @@ const testCases = [
     expectedValid: true,
     category: 'block'
   },
+
+  // STYLING DIRECTIVES TESTS
+  {
+    name: 'Flowchart with classDef',
+    code: `flowchart TD
+  A[Start] --> B[End]
+  classDef startNode fill:#f9f,stroke:#333,stroke-width:2px
+  class A startNode`,
+    expectedValid: true,
+    category: 'styling'
+  },
+  {
+    name: 'Flowchart with linkStyle',
+    code: `flowchart TD
+  A[Start] --> B[End]
+  linkStyle 0 stroke:#ff0000,stroke-width:2px`,
+    expectedValid: true,
+    category: 'styling'
+  },
+  {
+    name: 'Flowchart with style directive',
+    code: `flowchart TD
+  A[Start] --> B[End]
+  style A fill:#f9f,stroke:#333,stroke-width:2px`,
+    expectedValid: true,
+    category: 'styling'
+  },
+  {
+    name: 'Flowchart with click handler',
+    code: `flowchart TD
+  A[Start] --> B[End]
+  click A "https://example.com"`,
+    expectedValid: true,
+    category: 'styling'
+  },
+  {
+    name: 'Flowchart with direction change',
+    code: `flowchart LR
+  A[Start] --> B[End]`,
+    expectedValid: true,
+    category: 'styling'
+  },
+  {
+    name: 'State diagram with classDef',
+    code: `stateDiagram-v2
+  [*] --> State1
+  State1 --> State2
+  classDef stateNode fill:#f9f,stroke:#333,stroke-width:2px
+  class State1 stateNode`,
+    expectedValid: true,
+    category: 'styling'
+  },
+  {
+    name: 'Class diagram with classDef',
+    code: `classDiagram
+  class Animal {
+    +name: string
+  }
+  classDef animalClass fill:#f9f,stroke:#333,stroke-width:2px
+  class Animal animalClass`,
+    expectedValid: true,
+    category: 'styling'
+  },
+  {
+    name: 'State diagram with linkStyle (should fail)',
+    code: `stateDiagram-v2
+  [*] --> State1
+  State1 --> State2
+  linkStyle 0 stroke:#ff0000,stroke-width:2px`,
+    expectedValid: false,
+    category: 'styling'
+  },
+  {
+    name: 'Class diagram with linkStyle (should fail)',
+    code: `classDiagram
+  class Animal {
+    +name: string
+  }
+  linkStyle 0 stroke:#ff0000,stroke-width:2px`,
+    expectedValid: false,
+    category: 'styling'
+  },
+  {
+    name: 'Sequence diagram with classDef (should fail)',
+    code: `sequenceDiagram
+  participant A
+  participant B
+  A->>B: Hello
+  classDef participant fill:#f9f,stroke:#333,stroke-width:2px`,
+    expectedValid: false,
+    category: 'styling'
+  },
+
+  // NODE SHAPES TESTS
+  {
+    name: 'Flowchart with rectangular nodes',
+    code: `flowchart TD
+  A[Rect] --> B[Rect]`,
+    expectedValid: true,
+    category: 'node-shapes'
+  },
+  {
+    name: 'Flowchart with round nodes',
+    code: `flowchart TD
+  A(Round) --> B(Round)`,
+    expectedValid: true,
+    category: 'node-shapes'
+  },
+  {
+    name: 'Flowchart with diamond nodes',
+    code: `flowchart TD
+  A{Diamond} --> B{Diamond}`,
+    expectedValid: true,
+    category: 'node-shapes'
+  },
+  {
+    name: 'Flowchart with double-circle nodes',
+    code: `flowchart TD
+  A((Double)) --> B((Double))`,
+    expectedValid: true,
+    category: 'node-shapes'
+  },
+  {
+    name: 'Flowchart with mixed node shapes',
+    code: `flowchart TD
+  A[Rect] --> B(Round)
+  B --> C{Diamond}
+  C --> D((Double))`,
+    expectedValid: true,
+    category: 'node-shapes'
+  },
+  {
+    name: 'State diagram with double-parentheses (should fail)',
+    code: `stateDiagram-v2
+  [*] --> State1
+  State1 --> State2((End))`,
+    expectedValid: false,
+    category: 'node-shapes'
+  },
+  {
+    name: 'Class diagram with double-parentheses (should fail)',
+    code: `classDiagram
+  class Animal {
+    +name: string
+  }
+  class Animal((End))`,
+    expectedValid: false,
+    category: 'node-shapes'
+  },
+  {
+    name: 'Sequence diagram with double-parentheses (should fail)',
+    code: `sequenceDiagram
+  participant A
+  participant B((End))
+  A->>B: Hello`,
+    expectedValid: false,
+    category: 'node-shapes'
+  },
+
+  // INVALID STYLING TESTS
+  {
+    name: 'Flowchart with standalone note (should fail)',
+    code: `flowchart TD
+  A[Start] --> B[End]
+  note for A: This is invalid`,
+    expectedValid: false,
+    category: 'styling'
+  },
   
   // Invalid cases that should fail both validators
   {

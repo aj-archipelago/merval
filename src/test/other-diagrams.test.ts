@@ -158,6 +158,71 @@ export const otherDiagramTests = createTestSuite(
       }
     ),
 
+    // XY Chart Identifier Validation Tests
+    createTestCase(
+      'XY chart with unquoted identifier containing apostrophe',
+      `xychart-beta
+    title "Jason's Day Vibes Breakdown"
+    x-axis Jason's Daily Focus 0 --> 100
+    y-axis Day Categories ["Coffee Time", "Chill Sessions", "Dad Jokes", "Mischief Plots"]
+    pie [40, 30, 20, 10]`,
+      false,
+      { 
+        expectedDiagramType: 'xychart',
+        hasErrorWithCode: 'INVALID_X_AXIS_SYNTAX'
+      }
+    ),
+
+    createTestCase(
+      'XY chart with unquoted identifier containing ampersand',
+      `xychart-beta
+    title "Sales & Marketing"
+    x-axis Sales & Marketing 0 --> 100
+    y-axis "Revenue" 0 --> 1000
+    bar [100, 200, 300]`,
+      false,
+      { 
+        expectedDiagramType: 'xychart',
+        hasErrorWithCode: 'INVALID_X_AXIS_SYNTAX'
+      }
+    ),
+
+    createTestCase(
+      'XY chart with unquoted identifier containing spaces',
+      `xychart-beta
+    title "Monthly Sales"
+    x-axis Monthly Sales Data 0 --> 100
+    y-axis "Revenue" 0 --> 1000
+    bar [100, 200, 300]`,
+      false,
+      { 
+        expectedDiagramType: 'xychart',
+        hasErrorWithCode: 'INVALID_X_AXIS_SYNTAX'
+      }
+    ),
+
+    createTestCase(
+      'XY chart with quoted identifiers containing special characters',
+      `xychart-beta
+    title "Jason's Day Vibes Breakdown"
+    x-axis ["Coffee Time", "Chill Sessions", "Dad Jokes", "Mischief Plots"]
+    y-axis "Jason's Daily Focus" 0 --> 100
+    bar [40, 30, 20, 10]`,
+      true,
+      { expectedDiagramType: 'xychart' }
+    ),
+
+    createTestCase(
+      'XY chart with mixed quoted and unquoted identifiers',
+      `xychart-beta
+    title "Sales Data"
+    x-axis [Jan, "Feb-Mar", Apr, "May-Jun"]
+    y-axis "Revenue" 0 --> 1000
+    bar [100, 200, 300, 400]`,
+      true,
+      { expectedDiagramType: 'xychart' }
+    ),
+
     // Journey diagrams
     createTestCase(
       'Basic journey diagram',

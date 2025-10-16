@@ -19,6 +19,7 @@ export enum TokenType {
 
   // Flowchart specific
   ARROW = 'ARROW',
+  DOTTED_ARROW = 'DOTTED_ARROW',
   SUBGRAPH = 'SUBGRAPH',
   SUBGRAPH_END = 'SUBGRAPH_END',
 
@@ -37,6 +38,8 @@ export enum TokenType {
   BRACKET_CLOSE = 'BRACKET_CLOSE',
   PAREN_OPEN = 'PAREN_OPEN',
   PAREN_CLOSE = 'PAREN_CLOSE',
+  DOUBLE_PAREN_OPEN = 'DOUBLE_PAREN_OPEN',
+  DOUBLE_PAREN_CLOSE = 'DOUBLE_PAREN_CLOSE',
   BRACE_OPEN = 'BRACE_OPEN',
   BRACE_CLOSE = 'BRACE_CLOSE',
   COMMA = 'COMMA',
@@ -117,6 +120,31 @@ export class Lexer {
       return this.readComment();
     }
 
+    // Check for double parentheses (double-circle nodes)
+    if (char === '(' && this.position + 1 < this.input.length && this.input[this.position + 1] === '(') {
+      this.position += 2;
+      this.column += 2;
+      return {
+        type: TokenType.DOUBLE_PAREN_OPEN,
+        value: '((',
+        line: this.line,
+        column: this.column - 2,
+        position: this.position - 2
+      };
+    }
+    
+    if (char === ')' && this.position + 1 < this.input.length && this.input[this.position + 1] === ')') {
+      this.position += 2;
+      this.column += 2;
+      return {
+        type: TokenType.DOUBLE_PAREN_CLOSE,
+        value: '))',
+        line: this.line,
+        column: this.column - 2,
+        position: this.position - 2
+      };
+    }
+
     // Single character tokens
     const singleCharTokens: { [key: string]: TokenType } = {
       '[': TokenType.BRACKET_OPEN,
@@ -146,6 +174,32 @@ export class Lexer {
     }
 
     // Arrows (check longer sequences first)
+    // Check for dotted arrows first: -.-> or -.->>
+    if (char === '-' && this.position + 3 < this.input.length && 
+        this.input[this.position + 1] === '.' && this.input[this.position + 2] === '-' && 
+        this.input[this.position + 3] === '>') {
+      let arrowValue = '-.->';
+      let arrowType = TokenType.DOTTED_ARROW;
+      
+      if (this.position + 4 < this.input.length && this.input[this.position + 4] === '>') {
+        arrowValue = '-.->>';
+        this.position += 5;
+        this.column += 5;
+      } else {
+        this.position += 4;
+        this.column += 4;
+      }
+      
+      return {
+        type: arrowType,
+        value: arrowValue,
+        line: this.line,
+        column: this.column - arrowValue.length + 1,
+        position: this.position - arrowValue.length
+      };
+    }
+    
+    // Regular arrows: --> or -->>
     if (char === '-' && this.position + 2 < this.input.length && 
         this.input[this.position + 1] === '-' && this.input[this.position + 2] === '>') {
       // Check for different arrow types
@@ -307,7 +361,7 @@ export class Lexer {
   private readIdentifier(): Token {
     const start = this.position;
     
-    while (this.position < this.input.length && /[a-zA-Z0-9_-]/.test(this.input[this.position])) {
+    while (this.position < this.input.length && /[a-zA-Z0-9_'-]/.test(this.input[this.position])) {
       // Don't consume hyphens that might be part of arrows
       if (this.input[this.position] === '-' && this.position + 1 < this.input.length && 
           this.input[this.position + 1] === '>') {
@@ -344,8 +398,12 @@ export class Lexer {
         'participant': TokenType.PARTICIPANT,
       'activate': TokenType.ACTIVATION,
       'deactivate': TokenType.DEACTIVATION,
-      'note': TokenType.NOTE,
-      'subgraph': TokenType.SUBGRAPH
+      'note': TokenType.IDENTIFIER, // Keep as identifier for special handling
+      'subgraph': TokenType.SUBGRAPH,
+      'classdef': TokenType.IDENTIFIER, // Keep as identifier for special handling
+      'class': TokenType.IDENTIFIER, // Keep as identifier for special handling
+      'linkstyle': TokenType.IDENTIFIER, // Keep as identifier for special handling
+      'style': TokenType.IDENTIFIER // Keep as identifier for special handling
       // Note: 'end' removed from general keywords to avoid conflicts with identifiers
     };
 

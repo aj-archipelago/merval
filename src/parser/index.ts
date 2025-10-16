@@ -151,6 +151,14 @@ export class Parser {
       // Parse class assignments
       this.parseClassAssignment();
       return { type: 'processed', line: token.line, column: token.column } as any;
+    } else if (token.value === 'linkStyle') {
+      // Parse linkStyle statements
+      this.parseLinkStyle();
+      return { type: 'processed', line: token.line, column: token.column } as any;
+    } else if (token.value === 'style') {
+      // Parse style statements
+      this.parseStyle();
+      return { type: 'processed', line: token.line, column: token.column } as any;
     } else if (token.value === 'click') {
       // Parse click statements
       this.parseClickStatement();
@@ -174,7 +182,7 @@ export class Parser {
         // This might be a standalone identifier or part of an arrow
         return this.parseNode();
       }
-    } else if (token.type === TokenType.ARROW) {
+    } else if (token.type === TokenType.ARROW || token.type === TokenType.DOTTED_ARROW) {
       return this.parseArrow();
     } else if (token.type === TokenType.SUBGRAPH) {
       return this.parseSubgraph();
@@ -271,7 +279,7 @@ export class Parser {
         this.addError(this.currentToken(), 'Expected closing bracket ]');
         // Try to recover by skipping to next token
         while (!this.isAtEnd() && this.currentToken().type !== TokenType.BRACKET_CLOSE && 
-               this.currentToken().type !== TokenType.ARROW && this.currentToken().type !== TokenType.EOF) {
+               this.currentToken().type !== TokenType.ARROW && this.currentToken().type !== TokenType.DOTTED_ARROW && this.currentToken().type !== TokenType.EOF) {
           this.advance();
         }
         if (this.currentToken().type === TokenType.BRACKET_CLOSE) {
@@ -301,10 +309,40 @@ export class Parser {
         this.addError(this.currentToken(), 'Expected closing parenthesis )');
         // Try to recover
         while (!this.isAtEnd() && this.currentToken().type !== TokenType.PAREN_CLOSE && 
-               this.currentToken().type !== TokenType.ARROW && this.currentToken().type !== TokenType.EOF) {
+               this.currentToken().type !== TokenType.ARROW && this.currentToken().type !== TokenType.DOTTED_ARROW && this.currentToken().type !== TokenType.EOF) {
           this.advance();
         }
         if (this.currentToken().type === TokenType.PAREN_CLOSE) {
+          this.advance();
+        }
+      }
+    } else if (this.currentToken().type === TokenType.DOUBLE_PAREN_OPEN) {
+      this.advance(); // Skip ((
+      shape = 'circle'; // Double-circle nodes
+      
+      if (this.currentToken().type === TokenType.STRING) {
+        label = this.currentToken().value.slice(1, -1);
+        this.advance();
+      } else if (this.currentToken().type === TokenType.IDENTIFIER) {
+        // Collect multiple identifiers as a single label
+        const labelParts: string[] = [];
+        while (this.currentToken().type === TokenType.IDENTIFIER) {
+          labelParts.push(this.currentToken().value);
+          this.advance();
+        }
+        label = labelParts.join(' ');
+      }
+      
+      if (this.currentToken().type === TokenType.DOUBLE_PAREN_CLOSE) {
+        this.advance(); // Skip ))
+      } else {
+        this.addError(this.currentToken(), 'Expected closing double parenthesis ))');
+        // Try to recover
+        while (!this.isAtEnd() && this.currentToken().type !== TokenType.DOUBLE_PAREN_CLOSE && 
+               this.currentToken().type !== TokenType.ARROW && this.currentToken().type !== TokenType.DOTTED_ARROW && this.currentToken().type !== TokenType.EOF) {
+          this.advance();
+        }
+        if (this.currentToken().type === TokenType.DOUBLE_PAREN_CLOSE) {
           this.advance();
         }
       }
@@ -331,7 +369,7 @@ export class Parser {
         this.addError(this.currentToken(), 'Expected closing brace }');
         // Try to recover
         while (!this.isAtEnd() && this.currentToken().type !== TokenType.BRACE_CLOSE && 
-               this.currentToken().type !== TokenType.ARROW && this.currentToken().type !== TokenType.EOF) {
+               this.currentToken().type !== TokenType.ARROW && this.currentToken().type !== TokenType.DOTTED_ARROW && this.currentToken().type !== TokenType.EOF) {
           this.advance();
         }
         if (this.currentToken().type === TokenType.BRACE_CLOSE) {
@@ -412,6 +450,15 @@ export class Parser {
       
       if (token.type === TokenType.PARTICIPANT) {
         participants.push(this.parseParticipant());
+      } else if (token.value === 'classDef' || token.value === 'class' || token.value === 'linkStyle' || 
+                 token.value === 'style' || token.value === 'click' || token.value === 'note') {
+        // Styling directives are not valid in sequence diagrams
+        this.addError(token, 
+          `${token.value} directive is not supported in sequence diagrams`, 
+          'UNSUPPORTED_STYLING_DIRECTIVE', 
+          'Styling directives are not supported in sequence diagrams');
+        // Skip the directive to continue parsing
+        this.skipUntilSemicolon();
       } else if (token.type === TokenType.IDENTIFIER || token.type === TokenType.STRING) {
         // Check if this looks like a message (has an arrow after it)
         const nextToken = this.peekToken();
@@ -643,6 +690,33 @@ export class Parser {
     };
   }
 
+  /**
+   * Validates if an identifier contains special characters that require quoting
+   * @param identifier - The identifier to validate
+   * @param context - The parsing context (e.g., 'xychart-axis', 'flowchart-label')
+   * @returns true if the identifier is valid, false if it needs quoting
+   */
+  private isValidIdentifier(identifier: string, context: string): boolean {
+    // Characters that require quoting in most contexts
+    const specialChars = /['"&<>(){}[\]|\\\/\s]/;
+    
+    // Different rules for different contexts
+    switch (context) {
+      case 'xychart-axis':
+        // xychart-beta is strict about identifiers - no special characters allowed
+        return !specialChars.test(identifier);
+      case 'flowchart-label':
+        // Flowchart labels are more permissive
+        return true; // Flowcharts handle special chars better
+      case 'sequence-participant':
+        // Sequence participants should be quoted if they have special chars
+        return !specialChars.test(identifier);
+      default:
+        // Default: be conservative and require quoting for special chars
+        return !specialChars.test(identifier);
+    }
+  }
+
   private parseXYChart(): XYChartNode {
     const startToken = this.currentToken();
     this.advance(); // Skip xychart-beta
@@ -669,7 +743,14 @@ export class Parser {
             if (this.currentToken().type === TokenType.STRING) {
               xAxis.push(this.currentToken().value.slice(1, -1));
             } else if (this.currentToken().type === TokenType.IDENTIFIER) {
-              xAxis.push(this.currentToken().value);
+              const identifier = this.currentToken().value;
+              if (!this.isValidIdentifier(identifier, 'xychart-axis')) {
+                this.addError(this.currentToken(), 
+                  `Identifier '${identifier}' contains special characters and should be quoted`, 
+                  'INVALID_IDENTIFIER', 
+                  `Use "${identifier}" instead of ${identifier}`);
+              }
+              xAxis.push(identifier);
             }
             this.advance();
             if (this.currentToken().type === TokenType.COMMA) {
@@ -677,6 +758,12 @@ export class Parser {
             }
           }
           this.advance(); // Skip ]
+        } else {
+          // x-axis without brackets is invalid syntax
+          this.addError(this.currentToken(), 
+            'x-axis must be followed by a bracketed list of labels', 
+            'INVALID_X_AXIS_SYNTAX', 
+            'Use x-axis ["Label1", "Label2", "Label3"] format');
         }
       } else if (token.value === 'y-axis') {
         this.advance();
@@ -869,9 +956,43 @@ export class Parser {
     const startToken = this.currentToken();
     this.advance(); // Skip classDiagram
 
-    // For now, just parse until end - full class diagram parsing is complex
+    // Parse class diagram content
     while (!this.isAtEnd() && this.currentToken().type !== TokenType.EOF) {
-      this.advance();
+      const token = this.currentToken();
+      
+      // Handle styling directives that are valid in class diagrams
+      if (token.value === 'classDef') {
+        this.parseClassDef();
+      } else if (token.value === 'class') {
+        // For class diagrams, just skip the class assignment
+        this.advance(); // Skip 'class'
+        // Skip class name if present
+        if (this.currentToken().type === TokenType.IDENTIFIER) {
+          this.advance();
+        }
+        // Skip class name if present (for "class Animal animalClass" syntax)
+        if (this.currentToken().type === TokenType.IDENTIFIER) {
+          this.advance();
+        }
+      } else if (token.value === 'linkStyle' || token.value === 'style' || token.value === 'click' || token.value === 'note') {
+        // These styling directives are not valid in class diagrams
+        this.addError(token, 
+          `${token.value} directive is not supported in class diagrams`, 
+          'UNSUPPORTED_STYLING_DIRECTIVE', 
+          'Only classDef and class directives are supported in class diagrams');
+        // Skip the directive to continue parsing
+        this.skipUntilSemicolon();
+      } else if (token.type === TokenType.DOUBLE_PAREN_OPEN || token.type === TokenType.DOUBLE_PAREN_CLOSE) {
+        // Double-parentheses syntax is not valid in class diagrams
+        this.addError(token, 
+          'Double-parentheses syntax ((text)) is not supported in class diagrams', 
+          'UNSUPPORTED_NODE_SHAPE', 
+          'Use standard class syntax instead');
+        this.advance();
+      } else {
+        // Skip other tokens (class definitions, relationships, etc.)
+        this.advance();
+      }
     }
 
     return {
@@ -885,9 +1006,27 @@ export class Parser {
     const startToken = this.currentToken();
     this.advance(); // Skip stateDiagram-v2
 
-    // For now, just parse until end - full state diagram parsing is complex
+    // Parse state diagram content
     while (!this.isAtEnd() && this.currentToken().type !== TokenType.EOF) {
-      this.advance();
+      const token = this.currentToken();
+      
+      // Handle styling directives that are valid in state diagrams
+      if (token.value === 'classDef') {
+        this.parseClassDef();
+      } else if (token.value === 'class') {
+        this.parseClassAssignment();
+      } else if (token.value === 'linkStyle' || token.value === 'style' || token.value === 'click' || token.value === 'note') {
+        // These styling directives are not valid in state diagrams
+        this.addError(token, 
+          `${token.value} directive is not supported in state diagrams`, 
+          'UNSUPPORTED_STYLING_DIRECTIVE', 
+          'Only classDef and class directives are supported in state diagrams');
+        // Skip the directive to continue parsing
+        this.skipUntilSemicolon();
+      } else {
+        // Skip other tokens (states, transitions, etc.)
+        this.advance();
+      }
     }
 
     return {
@@ -895,6 +1034,15 @@ export class Parser {
       line: startToken.line,
       column: startToken.column
     };
+  }
+
+  private skipUntilSemicolon(): void {
+    while (!this.isAtEnd() && this.currentToken().type !== TokenType.SEMICOLON && this.currentToken().type !== TokenType.EOF) {
+      this.advance();
+    }
+    if (this.currentToken().type === TokenType.SEMICOLON) {
+      this.advance();
+    }
   }
 
   private parsePieChart(): ASTNode {
@@ -973,7 +1121,48 @@ export class Parser {
     // Skip 'class'
     this.advance();
     
-    // Skip everything until semicolon
+    // Skip class name
+    if (this.currentToken().type === TokenType.IDENTIFIER) {
+      this.advance();
+    }
+    
+    // If there's a class name after the first identifier, skip it too (for "class Animal animalClass" syntax)
+    if (this.currentToken().type === TokenType.IDENTIFIER) {
+      this.advance();
+    }
+    
+    // Skip everything until semicolon or EOF
+    while (!this.isAtEnd() && this.currentToken().type !== TokenType.SEMICOLON && 
+           this.currentToken().type !== TokenType.EOF) {
+      this.advance();
+    }
+    
+    // Skip semicolon if present
+    if (this.currentToken().type === TokenType.SEMICOLON) {
+      this.advance();
+    }
+  }
+
+  private parseLinkStyle(): void {
+    // Skip 'linkStyle'
+    this.advance();
+    
+    // Skip everything until semicolon (including link index and all styling properties)
+    while (!this.isAtEnd() && this.currentToken().type !== TokenType.SEMICOLON && this.currentToken().type !== TokenType.EOF) {
+      this.advance();
+    }
+    
+    // Skip semicolon if present
+    if (this.currentToken().type === TokenType.SEMICOLON) {
+      this.advance();
+    }
+  }
+
+  private parseStyle(): void {
+    // Skip 'style'
+    this.advance();
+    
+    // Skip everything until semicolon (including node identifier and all styling properties)
     while (!this.isAtEnd() && this.currentToken().type !== TokenType.SEMICOLON && this.currentToken().type !== TokenType.EOF) {
       this.advance();
     }
@@ -1002,6 +1191,22 @@ export class Parser {
   private parseNoteStatement(): void {
     // Skip 'note'
     this.advance();
+    
+    // Check if this is a standalone note statement (which is invalid)
+    // Valid note syntax should be: note for A: text or note A: text
+    // But Mermaid CLI doesn't actually support standalone note statements
+    // So we should reject them to match CLI behavior
+    
+    // Look ahead to see if this is a standalone note
+    const nextToken = this.peekToken();
+    if (nextToken && (nextToken.value === 'for' || nextToken.type === TokenType.IDENTIFIER)) {
+      // This looks like a standalone note statement - reject it
+      this.addError(this.currentToken(), 
+        'Standalone note statements are not supported in flowcharts', 
+        'INVALID_NOTE_SYNTAX', 
+        'Use note arrows instead: A -.->|note text| B');
+      return;
+    }
     
     // Skip everything until end of line or semicolon
     while (!this.isAtEnd() && this.currentToken().type !== TokenType.SEMICOLON && this.currentToken().type !== TokenType.EOF) {
