@@ -1,6 +1,6 @@
 {
   "name": "@aj-archipelago/merval",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "The world's first zero-dependency Mermaid diagram validator. Instant syntax validation without CLI calls or heavy dependencies.",
   "mermaidCompatibility": {
     "validatedAgainst": "11.12.0",
