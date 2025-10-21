@@ -459,8 +459,11 @@ export const flowchartTests = createTestSuite(
       `flowchart TD
         A[Start] --> B[Process]
         linkStyle 5 stroke:#ff0000,stroke-width:2px`,
-      true,
-      { expectedDiagramType: 'flowchart' }
+      false,
+      { 
+        expectedDiagramType: 'flowchart',
+        hasErrorWithCode: 'INVALID_LINKSTYLE_INDEX'
+      }
     ),
 
     createTestCase(

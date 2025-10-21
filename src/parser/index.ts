@@ -17,6 +17,7 @@ export class Parser {
   private tokens: Token[];
   private position: number = 0;
   private errors: ValidationError[] = [];
+  private linkCount: number = 0;
 
   constructor(input: string) {
     const lexer = new Lexer(input);
@@ -26,6 +27,7 @@ export class Parser {
   parse(): ValidationResult {
     this.errors = [];
     this.position = 0;
+    this.linkCount = 0;
 
     try {
       const ast = this.parseDiagram();
@@ -50,6 +52,11 @@ export class Parser {
   }
 
   private parseDiagram(): ASTNode {
+    // Skip any directives at the beginning
+    while (!this.isAtEnd() && this.currentToken().type === TokenType.DIRECTIVE) {
+      this.advance();
+    }
+    
     const token = this.currentToken();
     
     if (token.type === TokenType.GRAPH || token.type === TokenType.FLOWCHART) {
@@ -87,6 +94,7 @@ export class Parser {
   private parseFlowchart(): FlowchartNode {
     const startToken = this.currentToken();
     this.advance(); // Skip graph/flowchart
+    this.linkCount = 0; // Reset link count for this flowchart
 
     // Parse direction (TD, LR, etc.)
     let direction: string | undefined;
@@ -142,6 +150,13 @@ export class Parser {
   private parseFlowchartElement(): FlowchartElement | null {
     const token = this.currentToken();
     
+    // Check for unmatched 'end' keyword (end without corresponding subgraph)
+    if (token.type === TokenType.IDENTIFIER && token.value.toLowerCase() === 'end') {
+      this.addError(token, 'Unexpected "end" keyword - found end without matching subgraph', 'UNMATCHED_END', 'Remove the end keyword or add a corresponding subgraph');
+      this.advance();
+      return { type: 'processed', line: token.line, column: token.column } as any;
+    }
+    
     // Check for special keywords first
     if (token.value === 'classDef') {
       // Parse classDef statements
@@ -171,6 +186,15 @@ export class Parser {
       // Parse direction statements
       this.parseDirectionStatement();
       return { type: 'processed', line: token.line, column: token.column } as any;
+    } else if (token.value === 'title') {
+      // Title directive is not supported in flowcharts - reject it to match Mermaid CLI behavior
+      this.addError(token, 
+        'Title directive is not supported in flowcharts', 
+        'UNSUPPORTED_TITLE_DIRECTIVE', 
+        'Remove the title directive - flowcharts do not support titles');
+      // Skip the title directive to continue parsing
+      this.skipTitleDirective();
+      return { type: 'processed', line: token.line, column: token.column } as any;
     } else if (token.type === TokenType.IDENTIFIER) {
       // Check if this is a node (followed by brackets, parens, or braces)
       const nextToken = this.peekToken();
@@ -182,12 +206,20 @@ export class Parser {
         // This might be a standalone identifier or part of an arrow
         return this.parseNode();
       }
-    } else if (token.type === TokenType.ARROW || token.type === TokenType.DOTTED_ARROW) {
+    } else if (token.type === TokenType.ARROW || token.type === TokenType.DOTTED_ARROW || token.type === TokenType.THICK_ARROW) {
       return this.parseArrow();
     } else if (token.type === TokenType.SUBGRAPH) {
       return this.parseSubgraph();
     } else if (token.type === TokenType.COMMENT) {
+      // Check if this is truly an inline comment (has content before it on the same line)
+      // Inline comments are not supported by Mermaid CLI for strict compatibility
+      if (this.isInlineComment(token)) {
+        this.addError(token, 'Inline comments are not supported', 'INLINE_COMMENT_NOT_SUPPORTED', 'Move comment to its own line');
+      }
       // Skip comments - they don't need to be parsed as elements
+      this.advance();
+      return { type: 'processed', line: token.line, column: token.column } as any;    } else if (token.type === TokenType.DIRECTIVE) {
+      // Skip directives - they are configuration, not diagram elements
       this.advance();
       return { type: 'processed', line: token.line, column: token.column } as any;
     } else if (token.type === TokenType.SEMICOLON) {
@@ -390,7 +422,8 @@ export class Parser {
 
   private parseArrow(): FlowchartElement {
     const arrowToken = this.currentToken();
-    this.advance(); // Skip -->
+    this.advance(); // Skip arrow
+    this.linkCount++; // Count this as a link
 
     let label: string | undefined;
     if (this.currentToken().type === TokenType.PIPE) {
@@ -450,6 +483,9 @@ export class Parser {
       
       if (token.type === TokenType.PARTICIPANT) {
         participants.push(this.parseParticipant());
+      } else if (token.type === TokenType.DIRECTIVE) {
+        // Skip directives - they are configuration, not diagram elements
+        this.advance();
       } else if (token.value === 'classDef' || token.value === 'class' || token.value === 'linkStyle' || 
                  token.value === 'style' || token.value === 'click' || token.value === 'note') {
         // Styling directives are not valid in sequence diagrams
@@ -729,7 +765,10 @@ export class Parser {
     while (!this.isAtEnd() && this.currentToken().type !== TokenType.EOF) {
       const token = this.currentToken();
       
-      if (token.value === 'title') {
+      if (token.type === TokenType.DIRECTIVE) {
+        // Skip directives - they are configuration, not diagram elements
+        this.advance();
+      } else if (token.value === 'title') {
         this.advance();
         if (this.currentToken().type === TokenType.STRING) {
           title = this.currentToken().value.slice(1, -1);
@@ -835,6 +874,19 @@ export class Parser {
     const id = this.currentToken().value;
     this.advance();
 
+    // Skip optional label in brackets after the id
+    if (this.currentToken().type === TokenType.BRACKET_OPEN) {
+      this.advance(); // Skip [
+      // Skip the label content (usually a STRING)
+      if (this.currentToken().type === TokenType.STRING) {
+        this.advance();
+      }
+      // Skip ]
+      if (this.currentToken().type === TokenType.BRACKET_CLOSE) {
+        this.advance();
+      }
+    }
+
     const children: FlowchartElement[] = [];
     
     while (!this.isAtEnd() && !(this.currentToken().type === TokenType.IDENTIFIER && this.currentToken().value.toLowerCase() === 'end')) {
@@ -844,9 +896,16 @@ export class Parser {
       }
     }
 
+    // Check if we found the required 'end' keyword
     if (this.currentToken().type === TokenType.IDENTIFIER && this.currentToken().value.toLowerCase() === 'end') {
       this.advance(); // Skip end
+    } else {
+      // Report error for missing 'end' keyword
+      this.addError(this.currentToken(), 'Expected "end" to close subgraph', 'MISSING_SUBGRAPH_END', 'Add "end" keyword to close the subgraph');
     }
+
+    // Validate connections within the subgraph
+    this.validateFlowchartConnections(children);
 
     return {
       type: 'subgraph',
@@ -860,8 +919,18 @@ export class Parser {
   private getDiagramType(): string {
     if (this.tokens.length === 0) return 'unknown';
     
-    const firstToken = this.tokens[0];
-    switch (firstToken.type) {
+    // Find the first non-directive token to determine diagram type
+    let firstDiagramToken: Token | null = null;
+    for (let i = 0; i < this.tokens.length; i++) {
+      if (this.tokens[i].type !== TokenType.DIRECTIVE) {
+        firstDiagramToken = this.tokens[i];
+        break;
+      }
+    }
+    
+    if (!firstDiagramToken) return 'unknown';
+    
+    switch (firstDiagramToken.type) {
       case TokenType.GRAPH:
       case TokenType.FLOWCHART:
         return 'flowchart';
@@ -960,8 +1029,11 @@ export class Parser {
     while (!this.isAtEnd() && this.currentToken().type !== TokenType.EOF) {
       const token = this.currentToken();
       
-      // Handle styling directives that are valid in class diagrams
-      if (token.value === 'classDef') {
+      if (token.type === TokenType.DIRECTIVE) {
+        // Skip directives - they are configuration, not diagram elements
+        this.advance();
+      } else if (token.value === 'classDef') {
+        // Handle styling directives that are valid in class diagrams
         this.parseClassDef();
       } else if (token.value === 'class') {
         // For class diagrams, just skip the class assignment
@@ -1010,8 +1082,11 @@ export class Parser {
     while (!this.isAtEnd() && this.currentToken().type !== TokenType.EOF) {
       const token = this.currentToken();
       
-      // Handle styling directives that are valid in state diagrams
-      if (token.value === 'classDef') {
+      if (token.type === TokenType.DIRECTIVE) {
+        // Skip directives - they are configuration, not diagram elements
+        this.advance();
+      } else if (token.value === 'classDef') {
+        // Handle styling directives that are valid in state diagrams
         this.parseClassDef();
       } else if (token.value === 'class') {
         this.parseClassAssignment();
@@ -1102,9 +1177,64 @@ export class Parser {
     return parts.join(' ');
   }
 
-  private parseClassDef(): void {
+
+  private isInlineComment(commentToken: Token): boolean {
+    // An inline comment is one that has non-whitespace content before it on the same line
+    // Look backwards through tokens on the same line to see if there are any non-comment tokens
+    const currentLine = commentToken.line;
+    
+    // Find the position of this comment token in the tokens array
+    let commentIndex = -1;
+    for (let i = 0; i < this.tokens.length; i++) {
+      if (this.tokens[i] === commentToken) {
+        commentIndex = i;
+        break;
+      }
+    }
+    
+    if (commentIndex === -1) return false;
+    
+    // Look backwards from the comment token to find other tokens on the same line
+    for (let i = commentIndex - 1; i >= 0; i--) {
+      const token = this.tokens[i];
+      if (token.line < currentLine) {
+        // We've moved to a previous line, so this comment is standalone
+        break;
+      }
+      if (token.line === currentLine && token.type !== TokenType.WHITESPACE && token.type !== TokenType.NEWLINE) {
+        // Found a non-whitespace token on the same line before the comment
+        return true;
+      }
+    }
+    
+    return false;
+  }  private parseClassDef(): void {
+    const classDefToken = this.currentToken();
+    
     // Skip 'classDef'
     this.advance();
+    
+    // Check for equals syntax in CSS properties (not supported in Mermaid CLI v11.12.0)
+    let hasEqualsSyntax = false;
+    let currentPos = this.position;
+    
+    // Look ahead to check for equals signs in the CSS properties
+    while (currentPos < this.tokens.length && 
+           this.tokens[currentPos].type !== TokenType.SEMICOLON && 
+           this.tokens[currentPos].type !== TokenType.EOF) {
+      if (this.tokens[currentPos].value === '=') {
+        hasEqualsSyntax = true;
+        break;
+      }
+      currentPos++;
+    }
+    
+    if (hasEqualsSyntax) {
+      this.addError(classDefToken, 
+        'classDef with equals syntax is not supported in flowcharts', 
+        'UNSUPPORTED_CLASSDEF_EQUALS_SYNTAX', 
+        'Use colon syntax instead (e.g., fill:#f9f instead of fill=lightblue)');
+    }
     
     // Skip everything until semicolon (including class name and all styling properties)
     while (!this.isAtEnd() && this.currentToken().type !== TokenType.SEMICOLON && this.currentToken().type !== TokenType.EOF) {
@@ -1116,7 +1246,6 @@ export class Parser {
       this.advance();
     }
   }
-
   private parseClassAssignment(): void {
     // Skip 'class'
     this.advance();
@@ -1144,10 +1273,29 @@ export class Parser {
   }
 
   private parseLinkStyle(): void {
+    const linkStyleToken = this.currentToken();
+    
     // Skip 'linkStyle'
     this.advance();
     
-    // Skip everything until semicolon (including link index and all styling properties)
+    // Extract the link index if it's a number
+    let linkIndex: number | null = null;
+    if (this.currentToken().type === TokenType.NUMBER) {
+      linkIndex = parseInt(this.currentToken().value);
+      this.advance();
+      
+      // Validate that the link index exists
+      // Note: We only validate when parsing flowcharts (linkCount > 0 or we have link styling)
+      // Other diagram types don't use linkStyle in the same way
+      if (linkIndex >= this.linkCount) {
+        this.addError(linkStyleToken, 
+          `linkStyle index ${linkIndex} is out of bounds (only ${this.linkCount} link(s) defined)`, 
+          'INVALID_LINKSTYLE_INDEX', 
+          `Use a link index between 0 and ${Math.max(0, this.linkCount - 1)}`);
+      }
+    }
+    
+    // Skip everything until semicolon (including all styling properties)
     while (!this.isAtEnd() && this.currentToken().type !== TokenType.SEMICOLON && this.currentToken().type !== TokenType.EOF) {
       this.advance();
     }
@@ -1222,6 +1370,21 @@ export class Parser {
   private parseDirectionStatement(): void {
     // Skip 'direction'
     this.advance();
+    
+    // Skip the direction value (e.g., 'TB', 'LR', etc.)
+    if (this.currentToken().type === TokenType.IDENTIFIER) {
+      this.advance();
+    }
+  }
+
+  private skipTitleDirective(): void {
+    // Skip 'title'
+    this.advance();
+    
+    // Skip the title string if present
+    if (this.currentToken().type === TokenType.STRING) {
+      this.advance();
+    }
     
     // Skip everything until end of line or semicolon
     while (!this.isAtEnd() && this.currentToken().type !== TokenType.SEMICOLON && this.currentToken().type !== TokenType.EOF) {

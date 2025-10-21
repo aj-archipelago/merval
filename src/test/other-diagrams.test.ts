@@ -446,6 +446,65 @@ export const otherDiagramTests = createTestSuite(
         expectedDiagramType: 'unknown',
         hasErrorWithCode: 'EMPTY_INPUT'
       }
+    ),
+
+    // Directive compatibility tests for other diagram types
+    createTestCase(
+      'Class diagram with init directive',
+      `%%{init: {"theme": "dark"}}%%
+classDiagram
+    class Animal {
+        +String name
+        +makeSound()
+    }`,
+      true,
+      { expectedDiagramType: 'class' }
+    ),
+
+    createTestCase(
+      'State diagram with config directive',
+      `%%{config: {"state": {"diagramMarginX": 50}}}%%
+stateDiagram-v2
+    [*] --> Still
+    Still --> [*]`,
+      true,
+      { expectedDiagramType: 'state' }
+    ),
+
+    createTestCase(
+      'XY chart with init directive',
+      `%%{init: {"theme": "dark"}}%%
+xychart-beta
+    title "Sales Revenue"
+    x-axis ["Jan", "Feb", "Mar", "Apr", "May"]
+    y-axis "Revenue" 0 --> 1000
+    bar [500, 600, 750, 800, 950]`,
+      true,
+      { expectedDiagramType: 'xychart' }
+    ),
+
+    createTestCase(
+      'Pie chart with config directive',
+      `%%{config: {"pie": {"textPosition": 0.5}}}%%
+pie title Pets adopted by volunteers
+    "Dogs" : 386
+    "Cats" : 85
+    "Rats" : 15`,
+      true,
+      { expectedDiagramType: 'pie' }
+    ),
+
+    createTestCase(
+      'Journey diagram with init directive',
+      `%%{init: {"theme": "dark"}}%%
+journey
+    title My working day
+    section Go to work
+      Make tea: 5: Me
+      Go upstairs: 3: Me
+      Do work: 1: Me, Cat`,
+      true,
+      { expectedDiagramType: 'journey' }
     )
   ]
 );

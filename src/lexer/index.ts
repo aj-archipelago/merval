@@ -20,6 +20,7 @@ export enum TokenType {
   // Flowchart specific
   ARROW = 'ARROW',
   DOTTED_ARROW = 'DOTTED_ARROW',
+  THICK_ARROW = 'THICK_ARROW',
   SUBGRAPH = 'SUBGRAPH',
   SUBGRAPH_END = 'SUBGRAPH_END',
 
@@ -50,6 +51,7 @@ export enum TokenType {
   NEWLINE = 'NEWLINE',
   WHITESPACE = 'WHITESPACE',
   COMMENT = 'COMMENT',
+  DIRECTIVE = 'DIRECTIVE',
   EOF = 'EOF'
 }
 
@@ -115,9 +117,14 @@ export class Lexer {
       return this.nextToken();
     }
 
-    // Comments
+    // Comments and directives
     if (char === '%' && this.position + 1 < this.input.length && this.input[this.position + 1] === '%') {
-      return this.readComment();
+      // Check if this is a directive %%{...}%%
+      if (this.position + 2 < this.input.length && this.input[this.position + 2] === '{') {
+        return this.readDirective();
+      } else {
+        return this.readComment();
+      }
     }
 
     // Check for double parentheses (double-circle nodes)
@@ -145,7 +152,7 @@ export class Lexer {
       };
     }
 
-    // Single character tokens
+    // Single character tokens (but check for arrows first)
     const singleCharTokens: { [key: string]: TokenType } = {
       '[': TokenType.BRACKET_OPEN,
       ']': TokenType.BRACKET_CLOSE,
@@ -156,9 +163,55 @@ export class Lexer {
       ',': TokenType.COMMA,
       ';': TokenType.SEMICOLON,
       ':': TokenType.COLON,
-      '|': TokenType.PIPE,
-      '=': TokenType.EQUALS
+      '|': TokenType.PIPE
     };
+
+    // Handle equals separately to check for thick arrows first
+    if (char === '=') {
+      // Check for thick arrows: ==> (but not ==>>)
+      if (this.position + 2 < this.input.length && 
+          this.input[this.position + 1] === '=' && this.input[this.position + 2] === '>') {
+        // Check if this is ==>> (which is not supported)
+        if (this.position + 3 < this.input.length && this.input[this.position + 3] === '>') {
+          // This is ==>> which is not supported - treat as separate tokens
+          const token = {
+            type: TokenType.EQUALS,
+            value: char,
+            line: this.line,
+            column: this.column,
+            position: this.position
+          };
+          this.position++;
+          this.column++;
+          return token;
+        } else {
+          // This is ==> which is supported
+          const arrowValue = '==>';
+          this.position += 3;
+          this.column += 3;
+          
+          return {
+            type: TokenType.THICK_ARROW,
+            value: arrowValue,
+            line: this.line,
+            column: this.column - arrowValue.length + 1,
+            position: this.position - arrowValue.length
+          };
+        }
+      } else {
+        // Regular equals
+        const token = {
+          type: TokenType.EQUALS,
+          value: char,
+          line: this.line,
+          column: this.column,
+          position: this.position
+        };
+        this.position++;
+        this.column++;
+        return token;
+      }
+    }
 
     if (singleCharTokens[char]) {
       const token = {
@@ -174,7 +227,7 @@ export class Lexer {
     }
 
     // Arrows (check longer sequences first)
-    // Check for dotted arrows first: -.-> or -.->>
+    // Check for dotted arrows: -.-> or -.->>
     if (char === '-' && this.position + 3 < this.input.length && 
         this.input[this.position + 1] === '.' && this.input[this.position + 2] === '-' && 
         this.input[this.position + 3] === '>') {
@@ -287,6 +340,8 @@ export class Lexer {
 
   private readComment(): Token {
     const start = this.position;
+    const startLine = this.line;
+    const startColumn = this.column;
     this.position += 2; // Skip %%
     this.column += 2;
 
@@ -304,6 +359,47 @@ export class Lexer {
 
     return {
       type: TokenType.COMMENT,
+      value: this.input.slice(start, this.position),
+      line: startLine,
+      column: startColumn,
+      position: start
+    };
+  }
+
+  private readDirective(): Token {
+    const start = this.position;
+    this.position += 3; // Skip %%{
+    this.column += 3;
+
+    let braceCount = 1; // We've already seen the opening {
+    
+    while (this.position < this.input.length && braceCount > 0) {
+      const char = this.input[this.position];
+      
+      if (char === '{') {
+        braceCount++;
+      } else if (char === '}') {
+        braceCount--;
+      } else if (char === '\n') {
+        this.line++;
+        this.column = 1;
+      } else {
+        this.column++;
+      }
+      
+      this.position++;
+    }
+
+    // Check if we found the closing %% pattern
+    if (this.position + 1 < this.input.length && 
+        this.input[this.position] === '%' && 
+        this.input[this.position + 1] === '%') {
+      this.position += 2; // Skip closing %%
+      this.column += 2;
+    }
+
+    return {
+      type: TokenType.DIRECTIVE,
       value: this.input.slice(start, this.position),
       line: this.line,
       column: this.column,

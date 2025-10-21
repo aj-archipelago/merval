@@ -8,6 +8,7 @@ import { runSequenceTests } from './sequence.test.js';
 import { runOtherDiagramTests } from './other-diagrams.test.js';
 import { runErrorHandlingTests } from './error-handling.test.js';
 import { runIntegrationTests } from './integration.test.js';
+import { runDirectiveCompatibilityTests } from './directive-compatibility.test.js';
 
 // Test statistics
 interface TestStats {
@@ -35,11 +36,13 @@ const originalLog = console.log;
 console.log = (...args: any[]) => {
   const message = args.join(' ');
   
-  // Count test results
-  if (message.includes('✅')) {
+  // Count test results - only match the specific pattern: "✅ " or "❌ " at the start (after trimming)
+  // Skip summary lines that contain "Passed:" or "Failed:"
+  const trimmed = message.trimStart();
+  if (trimmed.startsWith('✅ ') && !trimmed.includes('Passed:')) {
     testStats.passedTests++;
     testStats.totalTests++;
-  } else if (message.includes('❌')) {
+  } else if (trimmed.startsWith('❌ ') && !trimmed.includes('Failed:')) {
     testStats.failedTests++;
     testStats.totalTests++;
   }
@@ -80,6 +83,7 @@ export function runAllTests(): void {
     runOtherDiagramTests();
     runErrorHandlingTests();
     runIntegrationTests();
+    runDirectiveCompatibilityTests();
     
     const endTime = Date.now();
     const duration = endTime - startTime;
@@ -102,10 +106,13 @@ export function runAllTests(): void {
       console.log(`   ${suite.name}: ${suite.passed}/${suite.total} (${successRate}%)`);
     });
     
-    if (testStats.failedTests === 0) {
+    // Calculate total failed from suites (more reliable than counting individual test messages)
+    const totalFailed = testStats.suites.reduce((sum, suite) => sum + suite.failed, 0);
+    
+    if (totalFailed === 0) {
       console.log('\n🎉 All tests passed! The mermaid validator is working correctly.');
     } else {
-      console.log(`\n⚠️  ${testStats.failedTests} test(s) failed. Please review the output above.`);
+      console.log(`\n⚠️  ${totalFailed} test(s) failed. Please review the output above.`);
     }
     
     console.log('\n' + '='.repeat(50));
@@ -143,9 +150,13 @@ export function runTestSuite(suiteName: string): void {
     case 'integration':
       runIntegrationTests();
       break;
+    case 'directive':
+    case 'directive-compatibility':
+      runDirectiveCompatibilityTests();
+      break;
     default:
       console.log(`❌ Unknown test suite: ${suiteName}`);
-      console.log('Available suites: flowchart, sequence, other-diagrams, error-handling, integration');
+      console.log('Available suites: flowchart, sequence, other-diagrams, error-handling, integration, directive-compatibility');
   }
 }
 

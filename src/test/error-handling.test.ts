@@ -277,9 +277,9 @@ export const errorHandlingTests = createTestSuite(
     createTestCase(
       'Flowchart with only comments',
       `flowchart TD
-        %% This is a comment
-        %% Another comment
-        %% Yet another comment`,
+%% This is a comment
+%% Another comment
+%% Yet another comment`,
       true,
       { expectedDiagramType: 'flowchart' }
     ),
@@ -378,6 +378,120 @@ export const errorHandlingTests = createTestSuite(
         A->>B: Message`,
       true,
       { expectedDiagramType: 'sequence' }
+    ),
+
+    // Mermaid CLI compatibility tests
+    createTestCase(
+      'Subgraph without end keyword',
+      `flowchart TD
+        A --> B
+        subgraph "Test Group"
+          B --> C
+        D --> E`,
+      false,
+      { 
+        expectedDiagramType: 'flowchart',
+        hasErrorWithCode: 'MISSING_SUBGRAPH_END'
+      }
+    ),
+
+    createTestCase(
+      'Subgraph with proper end keyword',
+      `flowchart TD
+        A --> B
+        subgraph "Test Group"
+          B --> C
+        end
+        D --> E`,
+      true,
+      { expectedDiagramType: 'flowchart' }
+    ),
+
+    createTestCase(
+      'Inline comment (not supported by Mermaid CLI)',
+      `flowchart TD
+A[A] %% This is an inline comment
+B[B]`,
+      false,
+      { 
+        expectedDiagramType: 'flowchart',
+        hasErrorWithCode: 'INLINE_COMMENT_NOT_SUPPORTED'
+      }
+    ),
+
+    createTestCase(
+      'Standalone comment (supported by Mermaid CLI)',
+      `flowchart TD
+A[A]
+%% This is a standalone comment
+B[B]`,
+      true,
+      { expectedDiagramType: 'flowchart' }
+    ),
+
+    createTestCase(
+      'Multiple inline comments',
+      `flowchart TD
+A[A] %% First inline comment
+B[B] %% Second inline comment
+C[C]`,
+      false,
+      { 
+        expectedDiagramType: 'flowchart',
+        hasErrorWithCode: 'INLINE_COMMENT_NOT_SUPPORTED'
+      }
+    ),
+
+    createTestCase(
+      'Mixed standalone and inline comments',
+      `flowchart TD
+A[A]
+%% Standalone comment
+B[B] %% Inline comment`,
+      false,
+      { 
+        expectedDiagramType: 'flowchart',
+        hasErrorWithCode: 'INLINE_COMMENT_NOT_SUPPORTED'
+      }
+    ),
+
+    createTestCase(
+      'Subgraph with inline comment',
+      `flowchart TD
+subgraph "Test"
+A[A] %% Inline comment in subgraph
+end`,
+      false,
+      { 
+        expectedDiagramType: 'flowchart',
+        hasErrorWithCode: 'INLINE_COMMENT_NOT_SUPPORTED'
+      }
+    ),
+
+    createTestCase(
+      'Subgraph with standalone comment',
+      `flowchart TD
+subgraph "Test"
+A[A]
+%% Standalone comment in subgraph
+B[B]
+end`,
+      true,
+      { expectedDiagramType: 'flowchart' }
+    ),
+
+    createTestCase(
+      'Complex diagram with both issues',
+      `flowchart TD
+A --> B
+subgraph "Group"
+B --> C %% Inline comment
+D --> E`,
+      false,
+      { 
+        expectedDiagramType: 'flowchart',
+        hasErrorWithCode: 'INLINE_COMMENT_NOT_SUPPORTED'
+      }
     )
   ]
 );

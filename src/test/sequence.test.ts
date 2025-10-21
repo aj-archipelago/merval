@@ -285,8 +285,6 @@ export const sequenceTests = createTestSuite(
     )
   ]
 );
-
-// Run the tests
 export function runSequenceTests(): void {
   console.log(`\n🧪 Running ${sequenceTests.name}`);
   console.log(`📝 ${sequenceTests.description}`);
