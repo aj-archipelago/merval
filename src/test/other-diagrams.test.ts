@@ -223,6 +223,37 @@ export const otherDiagramTests = createTestSuite(
       { expectedDiagramType: 'xychart' }
     ),
 
+    // XY chart syntax error cases
+    createTestCase(
+      'XY chart with invalid y-axis min keyword',
+      `xychart-beta
+    title "Productivity vs Energy Levels Over the Week"
+    x-axis ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+    y-axis "Level (1-10)" min 0 max 10
+    bar [6,7,8,7,9,6,7]
+    line [8,7,6,5,7,8,7]`,
+      false,
+      { 
+        expectedDiagramType: 'xychart',
+        hasErrorWithCode: 'INVALID_Y_AXIS_SYNTAX'
+      }
+    ),
+
+    createTestCase(
+      'XY chart with unsupported series syntax',
+      `xychart-beta
+    title "Productivity vs Energy Levels Over the Week"
+    x-axis ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+    y-axis "Level (1-10)" 0 --> 10
+    series "Productivity" type line [6,7,8,7,9,6,7]
+    series "Energy Levels" type line [8,7,6,5,7,8,7]`,
+      false,
+      { 
+        expectedDiagramType: 'xychart',
+        hasErrorWithCode: 'UNSUPPORTED_SERIES_SYNTAX'
+      }
+    ),
+
     // Journey diagrams
     createTestCase(
       'Basic journey diagram',

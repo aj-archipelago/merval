@@ -810,7 +810,14 @@ export class Parser {
           const label = this.currentToken().value.slice(1, -1);
           this.advance();
           
-          if (this.currentToken().type === TokenType.NUMBER) {
+          // Check for invalid 'min' keyword usage
+          if (this.currentToken().value === 'min') {
+            this.addError(this.currentToken(), 
+              'y-axis syntax does not support "min" keyword', 
+              'INVALID_Y_AXIS_SYNTAX', 
+              'Use format: y-axis "label" minValue --> maxValue');
+            this.advance(); // Skip 'min' to avoid infinite loop
+          } else if (this.currentToken().type === TokenType.NUMBER) {
             const min = parseInt(this.currentToken().value);
             this.advance();
             
@@ -847,6 +854,10 @@ export class Parser {
         // Unsupported chart types - Mermaid CLI doesn't support these yet
         this.addError(token, `Chart type '${token.value}' is not supported by Mermaid CLI`, 'UNSUPPORTED_CHART_TYPE', 'Use bar or line chart types instead');
         this.advance(); // Skip the unsupported token to avoid infinite loop
+      } else if (token.value === 'series') {
+        // series syntax is not supported by Mermaid CLI
+        this.addError(token, `'series' syntax is not supported by Mermaid CLI`, 'UNSUPPORTED_SERIES_SYNTAX', 'Use bar or line directly instead of series "name" type chart');
+        this.advance(); // Skip 'series' to avoid infinite loop
       } else {
         // Skip unknown tokens to avoid infinite loop
         this.advance();
