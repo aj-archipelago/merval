@@ -578,6 +578,36 @@ export const flowchartTests = createTestSuite(
     ),
 
     createTestCase(
+      'Flowchart with empty node labels',
+      `flowchart TD
+        A[] --> B[]`,
+      false,
+      { 
+        expectedDiagramType: 'flowchart',
+        hasErrorWithCode: 'EMPTY_NODE_LABEL'
+      }
+    ),
+
+    createTestCase(
+      'Flowchart with bidirectional arrow',
+      `flowchart TD
+        A <--> B`,
+      true,
+      { expectedDiagramType: 'flowchart' }
+    ),
+
+    createTestCase(
+      'Flowchart with invalid direction',
+      `flowchart INVALID
+        A --> B`,
+      false,
+      { 
+        expectedDiagramType: 'flowchart',
+        hasErrorWithCode: 'INVALID_DIRECTION'
+      }
+    ),
+
+    createTestCase(
       'Adjacent nodes without arrow',
       `flowchart TD
         A B`,
@@ -625,8 +655,11 @@ export const flowchartTests = createTestSuite(
       'Invalid direction',
       `flowchart INVALID
         A --> B`,
-      true,
-      { expectedDiagramType: 'flowchart' }
+      false,
+      { 
+        expectedDiagramType: 'flowchart',
+        hasErrorWithCode: 'INVALID_DIRECTION'
+      }
     ),
 
     // Edge cases

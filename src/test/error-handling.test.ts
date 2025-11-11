@@ -362,13 +362,13 @@ export const errorHandlingTests = createTestSuite(
       { expectedDiagramType: 'sequence' }
     ),
 
-    // Case sensitivity
+    // Case sensitivity - Mermaid CLI is case-sensitive for diagram types
     createTestCase(
       'Flowchart with mixed case',
       `FLOWCHART td
         A --> B`,
-      true,
-      { expectedDiagramType: 'flowchart' }
+      false, // Mermaid CLI rejects uppercase/mixed case diagram types
+      { hasErrorWithCode: 'CASE_SENSITIVE_DIAGRAM_TYPE' }
     ),
 
     createTestCase(
@@ -376,8 +376,8 @@ export const errorHandlingTests = createTestSuite(
       `SEQUENCEDIAGRAM
         PARTICIPANT A
         A->>B: Message`,
-      true,
-      { expectedDiagramType: 'sequence' }
+      false, // Mermaid CLI rejects uppercase/mixed case diagram types
+      { hasErrorWithCode: 'CASE_SENSITIVE_DIAGRAM_TYPE' }
     ),
 
     // Mermaid CLI compatibility tests
