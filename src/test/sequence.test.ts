@@ -282,6 +282,44 @@ export const sequenceTests = createTestSuite(
         B-->>A: Response 2`,
       true,
       { expectedDiagramType: 'sequence' }
+    ),
+
+    createTestCase(
+      'Sequence with Note right',
+      `sequenceDiagram
+        A->>B: Message
+        Note right of B: This is a note`,
+      true,
+      { expectedDiagramType: 'sequence' }
+    ),
+
+    createTestCase(
+      'Sequence with Note left',
+      `sequenceDiagram
+        A->>B: Message
+        Note left of A: This is a note`,
+      true,
+      { expectedDiagramType: 'sequence' }
+    ),
+
+    createTestCase(
+      'Sequence with Note over',
+      `sequenceDiagram
+        A->>B: Message
+        Note over A,B: This is a note`,
+      true,
+      { expectedDiagramType: 'sequence' }
+    ),
+
+    createTestCase(
+      'Sequence with invalid dotted arrow (no arrowhead)',
+      `sequenceDiagram
+        A--B: Message`,
+      false,
+      { 
+        expectedDiagramType: 'sequence',
+        hasErrorWithCode: 'INVALID_SEQUENCE_ARROW'
+      }
     )
   ]
 );

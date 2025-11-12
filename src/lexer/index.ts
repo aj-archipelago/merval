@@ -373,13 +373,29 @@ export class Lexer {
 
     let braceCount = 1; // We've already seen the opening {
     
-    while (this.position < this.input.length && braceCount > 0) {
+    // Look for closing %% pattern, but also track braces
+    // Mermaid CLI is lenient - accepts directives even if braces don't match
+    while (this.position < this.input.length) {
       const char = this.input[this.position];
       
+      // Check for closing %% pattern first (Mermaid CLI accepts this even with unmatched braces)
+      if (char === '%' && this.position + 1 < this.input.length && 
+          this.input[this.position + 1] === '%') {
+        // Found closing %%, stop here
+        this.position += 2; // Skip closing %%
+        this.column += 2;
+        break;
+      }
+      
+      // Track braces
       if (char === '{') {
         braceCount++;
       } else if (char === '}') {
         braceCount--;
+        // If braces are balanced, we can look for closing %%
+        if (braceCount === 0) {
+          // Continue to find closing %%
+        }
       } else if (char === '\n') {
         this.line++;
         this.column = 1;
@@ -388,14 +404,6 @@ export class Lexer {
       }
       
       this.position++;
-    }
-
-    // Check if we found the closing %% pattern
-    if (this.position + 1 < this.input.length && 
-        this.input[this.position] === '%' && 
-        this.input[this.position + 1] === '%') {
-      this.position += 2; // Skip closing %%
-      this.column += 2;
     }
 
     return {

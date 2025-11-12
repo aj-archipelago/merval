@@ -7,416 +7,343 @@
  * to ensure 100% compatibility. It tests various edge cases and scenarios to
  * guarantee that no chart will pass our validator and then fail to render.
  * 
- * Usage: node src/test/cli-validation/validate-against-cli.js
+ * Usage: 
+ *   node src/test/cli-validation/validate-against-cli.js                    # Run all tests
+ *   node src/test/cli-validation/validate-against-cli.js --category gitgraph # Run only gitgraph tests
+ *   node src/test/cli-validation/validate-against-cli.js --name "duplicate"  # Run tests matching name
+ *   node src/test/cli-validation/validate-against-cli.js --index 1-10       # Run tests 1-10
+ *   node src/test/cli-validation/validate-against-cli.js --mismatch          # Run only mismatched tests
  */
 
 import { validateMermaid } from '../../../dist/index.js';
 import { execSync } from 'child_process';
 import fs from 'fs';
+import crypto from 'crypto';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { gitgraphTests } from './test-data/gitgraph-tests.js';
+import { flowchartTests } from './test-data/flowchart-tests.js';
+import { sequenceTests } from './test-data/sequence-tests.js';
+import { otherDiagramsTests } from './test-data/other-diagrams-tests.js';
+import { edgeCasesTests } from './test-data/edge-cases-tests.js';
 
-// Comprehensive test cases covering all scenarios
-const testCases = [
-  // Valid cases that should pass both validators
-  {
-    name: 'Simple flowchart',
-    code: `flowchart TD
-  A[Start] --> B[End]`,
-    expectedValid: true,
-    category: 'basic'
-  },
-  {
-    name: 'Sequence with implicit participants',
-    code: `sequenceDiagram
-  Alice->>Bob: Hello Bob, how are you?`,
-    expectedValid: true,
-    category: 'sequence'
-  },
-  {
-    name: 'Unicode characters (emojis)',
-    code: `sequenceDiagram
-  participant 🚀
-  participant ✅
-  🚀->>✅: Hello!`,
-    expectedValid: true,
-    category: 'unicode'
-  },
-  {
-    name: 'Special characters in participant names',
-    code: `sequenceDiagram
-  participant "Alice & Bob"
-  participant "Charlie-David"
-  "Alice & Bob"->>"Charlie-David": Hello`,
-    expectedValid: true,
-    category: 'special-chars'
-  },
-  {
-    name: 'Complex flowchart with decision points',
-    code: `flowchart TD
-  A[Start] --> B{First Decision}
-  B -->|Option 1| C{Second Decision}
-  B -->|Option 2| D{Third Decision}
-  C -->|Yes| F[Process 1A]
-  C -->|No| G[Process 1B]
-  F --> L[End]
-  G --> L`,
-    expectedValid: true,
-    category: 'complex'
-  },
-  {
-    name: 'Mixed diagrams (flowchart -> sequence)',
-    code: `flowchart TD
-  A --> B
-  sequenceDiagram
-  Alice --> Bob`,
-    expectedValid: true,
-    category: 'mixed'
-  },
-  {
-    name: 'Class diagram',
-    code: `classDiagram
-  class Animal {
-    +String name
-    +int age
-    +makeSound()
-  }
-  class Dog {
-    +String breed
-    +bark()
-  }
-  Animal <|-- Dog`,
-    expectedValid: true,
-    category: 'class'
-  },
-  {
-    name: 'State diagram',
-    code: `stateDiagram-v2
-  [*] --> Still
-  Still --> [*]
-  Still --> Moving
-  Moving --> Still
-  Moving --> Crash
-  Crash --> [*]`,
-    expectedValid: true,
-    category: 'state'
-  },
-  {
-    name: 'Pie chart',
-    code: `pie title "Sales by Region"
-  "North" : 42
-  "South" : 28
-  "East" : 20
-  "West" : 10`,
-    expectedValid: true,
-    category: 'pie'
-  },
-  {
-    name: 'XY chart',
-    code: `xychart-beta
-  title "Sales Revenue"
-  x-axis [jan, feb, mar, apr, may, jun]
-  y-axis "Revenue (in $)" 4000 --> 11000
-  bar [5000, 6000, 7500, 8200, 9500, 10500]`,
-    expectedValid: true,
-    category: 'xy-chart'
-  },
-  {
-    name: 'Block diagram',
-    code: `block-beta
-  columns 3
-  A["Block A"] B["Block B"] C["Block C"]
-  D["Block D"] E["Block E"] F["Block F"]`,
-    expectedValid: true,
-    category: 'block'
-  },
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const CACHE_FILE = path.join(__dirname, '.mermaid-cli-cache.json');
 
-  // STYLING DIRECTIVES TESTS
-  {
-    name: 'Flowchart with classDef',
-    code: `flowchart TD
-  A[Start] --> B[End]
-  classDef startNode fill:#f9f,stroke:#333,stroke-width:2px
-  class A startNode`,
-    expectedValid: true,
-    category: 'styling'
-  },
-  {
-    name: 'Flowchart with linkStyle',
-    code: `flowchart TD
-  A[Start] --> B[End]
-  linkStyle 0 stroke:#ff0000,stroke-width:2px`,
-    expectedValid: true,
-    category: 'styling'
-  },
-  {
-    name: 'Flowchart with style directive',
-    code: `flowchart TD
-  A[Start] --> B[End]
-  style A fill:#f9f,stroke:#333,stroke-width:2px`,
-    expectedValid: true,
-    category: 'styling'
-  },
-  {
-    name: 'Flowchart with click handler',
-    code: `flowchart TD
-  A[Start] --> B[End]
-  click A "https://example.com"`,
-    expectedValid: true,
-    category: 'styling'
-  },
-  {
-    name: 'Flowchart with direction change',
-    code: `flowchart LR
-  A[Start] --> B[End]`,
-    expectedValid: true,
-    category: 'styling'
-  },
-  {
-    name: 'State diagram with classDef',
-    code: `stateDiagram-v2
-  [*] --> State1
-  State1 --> State2
-  classDef stateNode fill:#f9f,stroke:#333,stroke-width:2px
-  class State1 stateNode`,
-    expectedValid: true,
-    category: 'styling'
-  },
-  {
-    name: 'Class diagram with classDef',
-    code: `classDiagram
-  class Animal {
-    +name: string
-  }
-  classDef animalClass fill:#f9f,stroke:#333,stroke-width:2px
-  class Animal animalClass`,
-    expectedValid: true,
-    category: 'styling'
-  },
-  {
-    name: 'State diagram with linkStyle (should fail)',
-    code: `stateDiagram-v2
-  [*] --> State1
-  State1 --> State2
-  linkStyle 0 stroke:#ff0000,stroke-width:2px`,
-    expectedValid: false,
-    category: 'styling'
-  },
-  {
-    name: 'Class diagram with linkStyle (should fail)',
-    code: `classDiagram
-  class Animal {
-    +name: string
-  }
-  linkStyle 0 stroke:#ff0000,stroke-width:2px`,
-    expectedValid: false,
-    category: 'styling'
-  },
-  {
-    name: 'Sequence diagram with classDef (should fail)',
-    code: `sequenceDiagram
-  participant A
-  participant B
-  A->>B: Hello
-  classDef participant fill:#f9f,stroke:#333,stroke-width:2px`,
-    expectedValid: false,
-    category: 'styling'
-  },
-
-  // NODE SHAPES TESTS
-  {
-    name: 'Flowchart with rectangular nodes',
-    code: `flowchart TD
-  A[Rect] --> B[Rect]`,
-    expectedValid: true,
-    category: 'node-shapes'
-  },
-  {
-    name: 'Flowchart with round nodes',
-    code: `flowchart TD
-  A(Round) --> B(Round)`,
-    expectedValid: true,
-    category: 'node-shapes'
-  },
-  {
-    name: 'Flowchart with diamond nodes',
-    code: `flowchart TD
-  A{Diamond} --> B{Diamond}`,
-    expectedValid: true,
-    category: 'node-shapes'
-  },
-  {
-    name: 'Flowchart with double-circle nodes',
-    code: `flowchart TD
-  A((Double)) --> B((Double))`,
-    expectedValid: true,
-    category: 'node-shapes'
-  },
-  {
-    name: 'Flowchart with mixed node shapes',
-    code: `flowchart TD
-  A[Rect] --> B(Round)
-  B --> C{Diamond}
-  C --> D((Double))`,
-    expectedValid: true,
-    category: 'node-shapes'
-  },
-  {
-    name: 'State diagram with double-parentheses (should fail)',
-    code: `stateDiagram-v2
-  [*] --> State1
-  State1 --> State2((End))`,
-    expectedValid: false,
-    category: 'node-shapes'
-  },
-  {
-    name: 'Class diagram with double-parentheses (should fail)',
-    code: `classDiagram
-  class Animal {
-    +name: string
-  }
-  class Animal((End))`,
-    expectedValid: false,
-    category: 'node-shapes'
-  },
-  {
-    name: 'Sequence diagram with double-parentheses (should fail)',
-    code: `sequenceDiagram
-  participant A
-  participant B((End))
-  A->>B: Hello`,
-    expectedValid: false,
-    category: 'node-shapes'
-  },
-
-  // INVALID STYLING TESTS
-  {
-    name: 'Flowchart with standalone note (should fail)',
-    code: `flowchart TD
-  A[Start] --> B[End]
-  note for A: This is invalid`,
-    expectedValid: false,
-    category: 'styling'
-  },
-  
-  // Invalid cases that should fail both validators
-  {
-    name: 'Adjacent nodes without arrow',
-    code: `flowchart TD
-  A B`,
-    expectedValid: false,
-    category: 'syntax-error'
-  },
-  {
-    name: 'Incomplete message',
-    code: `sequenceDiagram
-  participant A
-  participant B
-  A -->`,
-    expectedValid: false,
-    category: 'syntax-error'
-  },
-  {
-    name: 'Malformed participant',
-    code: `sequenceDiagram
-  participant`,
-    expectedValid: false,
-    category: 'syntax-error'
-  },
-  {
-    name: 'Unclosed bracket',
-    code: `flowchart TD
-  A[Start --> B[End]`,
-    expectedValid: false,
-    category: 'syntax-error'
-  },
-  {
-    name: 'Empty input',
-    code: '',
-    expectedValid: false,
-    category: 'edge-case'
-  },
-  {
-    name: 'Unknown diagram type',
-    code: `unknownDiagram
-  some content`,
-    expectedValid: false,
-    category: 'edge-case'
-  }
+// Combine all test cases
+const allTestCases = [
+  ...gitgraphTests,
+  ...flowchartTests,
+  ...sequenceTests,
+  ...otherDiagramsTests,
+  ...edgeCasesTests
 ];
+
+// Parse command line arguments
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const options = {
+    category: null,
+    name: null,
+    index: null,
+    mismatch: false,
+    help: false,
+    regenerateCache: false
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--category' || arg === '-c') {
+      options.category = args[++i];
+    } else if (arg === '--name' || arg === '-n') {
+      options.name = args[++i];
+    } else if (arg === '--index' || arg === '-i') {
+      options.index = args[++i];
+    } else if (arg === '--mismatch' || arg === '-m') {
+      options.mismatch = true;
+    } else if (arg === '--regenerate-cache' || arg === '--refresh-cache' || arg === '-r') {
+      options.regenerateCache = true;
+    } else if (arg === '--help' || arg === '-h') {
+      options.help = true;
+    }
+  }
+
+  return options;
+}
+
+function showHelp() {
+  console.log('🔍 CLI Validation Test Suite');
+  console.log('============================\n');
+  console.log('Usage:');
+  console.log('  node src/test/cli-validation/validate-against-cli.js [options]\n');
+  console.log('Options:');
+  console.log('  --category, -c <category>     Run only tests in this category');
+  console.log('  --name, -n <pattern>          Run only tests matching name pattern');
+  console.log('  --index, -i <range>           Run tests by index (e.g., "1-10" or "5")');
+  console.log('  --mismatch, -m                Run only previously mismatched tests');
+  console.log('  --regenerate-cache, -r       Regenerate CLI result cache (slow)');
+  console.log('  --help, -h                    Show this help message\n');
+  console.log('Examples:');
+  console.log('  node validate-against-cli.js --category gitgraph-basic');
+  console.log('  node validate-against-cli.js --name "duplicate"');
+  console.log('  node validate-against-cli.js --index 1-20');
+  console.log('  node validate-against-cli.js --index 5');
+  console.log('  node validate-against-cli.js --mismatch');
+  console.log('  node validate-against-cli.js --regenerate-cache\n');
+  console.log('Note: CLI results are cached by default for faster runs.');
+  console.log('      Use --regenerate-cache to refresh the cache.\n');
+  console.log('Available categories:');
+  const categories = [...new Set(allTestCases.map(t => t.category))].sort();
+  categories.forEach(cat => {
+    const count = allTestCases.filter(t => t.category === cat).length;
+    console.log(`  - ${cat} (${count} tests)`);
+  });
+  process.exit(0);
+}
+
+function filterTests(tests, options) {
+  let filtered = tests;
+
+  if (options.category) {
+    filtered = filtered.filter(t => t.category === options.category);
+  }
+
+  if (options.name) {
+    const pattern = new RegExp(options.name, 'i');
+    filtered = filtered.filter(t => pattern.test(t.name));
+  }
+
+  if (options.index) {
+    if (options.index.includes('-')) {
+      const [start, end] = options.index.split('-').map(Number);
+      filtered = filtered.slice(start - 1, end);
+    } else {
+      const idx = Number(options.index) - 1;
+      filtered = filtered.slice(idx, idx + 1);
+    }
+  }
+
+  if (options.mismatch) {
+    // This will be populated after first run - for now, return empty
+    console.log('⚠️  --mismatch requires a previous run. Running all tests instead.');
+  }
+
+  return filtered;
+}
+
+const options = parseArgs();
+
+if (options.help) {
+  showHelp();
+}
+
+// Filter tests based on options
+let testCases = filterTests(allTestCases, options);
+
+if (testCases.length === 0) {
+  console.error('❌ No tests match the specified criteria.');
+  process.exit(1);
+}
 
 console.log('🔍 CLI Validation Test Suite');
 console.log('============================\n');
-console.log('Testing mermaid-validator against real Mermaid CLI...\n');
+
+// Load cache
+const cache = options.regenerateCache ? {} : loadCache();
+const cacheSize = Object.keys(cache).length;
+
+if (options.regenerateCache) {
+  console.log('🔄 Regenerating CLI result cache...\n');
+} else if (cacheSize > 0) {
+  console.log(`💾 Using cached CLI results (${cacheSize} entries). Use --regenerate-cache to refresh.\n`);
+} else {
+  console.log('⚠️  No cache found. Running CLI tests (this may take a while)...\n');
+}
+
+console.log(`Testing ${testCases.length} of ${allTestCases.length} test cases against ${options.regenerateCache ? 'real Mermaid CLI' : 'cached CLI results'}...\n`);
 
 let totalTests = testCases.length;
 let matches = 0;
 let discrepancies = [];
 const categoryStats = {};
+const detailedDiscrepancies = [];
+let cacheMisses = 0;
+let cacheHits = 0;
 
 // Initialize category stats
 testCases.forEach(test => {
   if (!categoryStats[test.category]) {
-    categoryStats[test.category] = { total: 0, matches: 0 };
+    categoryStats[test.category] = { total: 0, matches: 0, discrepancies: [] };
   }
   categoryStats[test.category].total++;
 });
 
-for (const testCase of testCases) {
-  console.log(`Testing: ${testCase.name} (${testCase.category})`);
+// Cache management functions
+function getCacheHash(code) {
+  return crypto.createHash('sha256').update(code).digest('hex');
+}
+
+function loadCache() {
+  if (!fs.existsSync(CACHE_FILE)) {
+    return {};
+  }
+  try {
+    const cacheData = fs.readFileSync(CACHE_FILE, 'utf8');
+    return JSON.parse(cacheData);
+  } catch (error) {
+    console.warn(`⚠️  Warning: Could not load cache file: ${error.message}`);
+    return {};
+  }
+}
+
+function saveCache(cache) {
+  try {
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2), 'utf8');
+  } catch (error) {
+    console.warn(`⚠️  Warning: Could not save cache file: ${error.message}`);
+  }
+}
+
+// Test execution function
+function testWithMermaidCLI(code, useCache = true, cache = {}) {
+  const codeHash = getCacheHash(code);
+  
+  // Check cache first (only if useCache is true)
+  if (useCache && cache[codeHash]) {
+    return cache[codeHash];
+  }
+  
+  // Run actual CLI test
+  const tempFile = '/tmp/merval-cli-test.mmd';
+  const outputFile = '/tmp/merval-cli-test.png';
+  
+  let result;
+  try {
+    fs.writeFileSync(tempFile, code, 'utf8');
+    execSync(`mmdc -i ${tempFile} -o ${outputFile}`, { 
+      stdio: 'pipe',
+      timeout: 10000,
+      encoding: 'utf8'
+    });
+    
+    result = { isValid: true, error: null };
+  } catch (error) {
+    result = { 
+      isValid: false, 
+      error: error.message || String(error)
+    };
+  } finally {
+    // Clean up temp files
+    if (fs.existsSync(tempFile)) {
+      fs.unlinkSync(tempFile);
+    }
+    if (fs.existsSync(outputFile)) {
+      fs.unlinkSync(outputFile);
+    }
+  }
+  
+  // Always cache the result (for both normal runs and regeneration)
+  cache[codeHash] = result;
+  
+  return result;
+}
+
+// Run tests
+for (let i = 0; i < testCases.length; i++) {
+  const testCase = testCases[i];
+  const progress = `[${i + 1}/${totalTests}]`;
+  
+  process.stdout.write(`${progress} Testing: ${testCase.name} (${testCase.category})... `);
   
   // Test with our validator
   const ourResult = validateMermaid(testCase.code);
   
-  // Test with real Mermaid CLI
-  let mermaidResult = { isValid: false, error: null };
-  try {
-    fs.writeFileSync('/tmp/test.mmd', testCase.code);
-    execSync('mmdc -i /tmp/test.mmd -o /tmp/test.png', { stdio: 'pipe' });
-    mermaidResult.isValid = true;
-    
-    // Clean up
-    fs.unlinkSync('/tmp/test.mmd');
-    if (fs.existsSync('/tmp/test.png')) {
-      fs.unlinkSync('/tmp/test.png');
-    }
-  } catch (error) {
-    mermaidResult.isValid = false;
-    mermaidResult.error = error.message;
+  // Test with Mermaid CLI (use cache unless regenerating)
+  const codeHash = getCacheHash(testCase.code);
+  const wasCached = !options.regenerateCache && cache[codeHash] !== undefined;
+  if (wasCached) {
+    cacheHits++;
+  } else {
+    cacheMisses++;
+  }
+  
+  const mermaidResult = testWithMermaidCLI(testCase.code, !options.regenerateCache, cache);
+  
+  // Save cache immediately after running CLI test (so Ctrl+C doesn't lose progress)
+  if (!wasCached) {
+    saveCache(cache);
   }
   
   // Compare results
-  if (ourResult.isValid === mermaidResult.isValid) {
-    console.log(`✅ MATCH: Both ${ourResult.isValid ? 'valid' : 'invalid'}`);
+  const matchesExpected = ourResult.isValid === testCase.expectedValid;
+  const matchesCLI = ourResult.isValid === mermaidResult.isValid;
+  
+  if (matchesCLI && matchesExpected) {
+    console.log(`✅ MATCH${wasCached ? ' (cached)' : ''}`);
     matches++;
     categoryStats[testCase.category].matches++;
   } else {
-    console.log(`❌ MISMATCH:`);
-    console.log(`   Our validator: ${ourResult.isValid ? 'valid' : 'invalid'}`);
-    console.log(`   Mermaid CLI: ${mermaidResult.isValid ? 'valid' : 'invalid'}`);
-    if (mermaidResult.error) {
-      console.log(`   Mermaid error: ${mermaidResult.error.substring(0, 100)}...`);
-    }
-    if (ourResult.errors.length > 0) {
-      console.log(`   Our errors: ${ourResult.errors.map(e => e.message).join(', ')}`);
-    }
-    discrepancies.push({
+    console.log(`❌ MISMATCH${wasCached ? ' (cached)' : ''}`);
+    
+    const discrepancy = {
       name: testCase.name,
       category: testCase.category,
+      code: testCase.code,
+      expectedValid: testCase.expectedValid,
       ourResult: ourResult.isValid,
       mermaidResult: mermaidResult.isValid,
       ourErrors: ourResult.errors,
-      mermaidError: mermaidResult.error
-    });
+      mermaidError: mermaidResult.error,
+      issue: ''
+    };
+    
+    // Determine the issue type
+    if (!matchesExpected) {
+      discrepancy.issue = 'EXPECTATION_MISMATCH';
+      discrepancy.issueDetail = `Expected ${testCase.expectedValid ? 'valid' : 'invalid'}, but our validator says ${ourResult.isValid ? 'valid' : 'invalid'}`;
+    } else if (!matchesCLI) {
+      if (ourResult.isValid && !mermaidResult.isValid) {
+        discrepancy.issue = 'FALSE_POSITIVE';
+        discrepancy.issueDetail = 'Our validator accepts but Mermaid CLI rejects - this is CRITICAL';
+      } else if (!ourResult.isValid && mermaidResult.isValid) {
+        discrepancy.issue = 'FALSE_NEGATIVE';
+        discrepancy.issueDetail = 'Our validator rejects but Mermaid CLI accepts - less critical but should be fixed';
+      }
+    }
+    
+    discrepancies.push(discrepancy);
+    detailedDiscrepancies.push(discrepancy);
+    categoryStats[testCase.category].discrepancies = categoryStats[testCase.category].discrepancies || [];
+    categoryStats[testCase.category].discrepancies.push(discrepancy);
   }
-  console.log('');
 }
 
-console.log('📊 DETAILED RESULTS:');
-console.log('===================');
+// Show cache summary (cache is saved incrementally during test execution)
+if (cacheMisses > 0 || options.regenerateCache) {
+  const totalEntries = Object.keys(cache).length;
+  if (options.regenerateCache) {
+    console.log(`\n💾 Cache regenerated: ${totalEntries} entries saved.`);
+  } else if (cacheMisses > 0) {
+    console.log(`\n💾 Cache updated: ${cacheMisses} new entries added (${totalEntries} total).`);
+  }
+}
+
+console.log('\n📊 DETAILED RESULTS:');
+console.log('===================\n');
 
 // Category breakdown
-Object.entries(categoryStats).forEach(([category, stats]) => {
+Object.entries(categoryStats).sort((a, b) => {
+  // Sort by match rate (lowest first) then by total
+  const aRate = a[1].matches / a[1].total;
+  const bRate = b[1].matches / b[1].total;
+  if (aRate !== bRate) return aRate - bRate;
+  return b[1].total - a[1].total;
+}).forEach(([category, stats]) => {
   const matchRate = ((stats.matches / stats.total) * 100).toFixed(1);
-  console.log(`${category}: ${stats.matches}/${stats.total} (${matchRate}%)`);
+  const discrepancyCount = stats.discrepancies ? stats.discrepancies.length : 0;
+  const status = matchRate === '100.0' ? '✅' : '❌';
+  console.log(`${status} ${category}: ${stats.matches}/${stats.total} (${matchRate}%)${discrepancyCount > 0 ? ` - ${discrepancyCount} discrepancy(ies)` : ''}`);
 });
 
 console.log(`\n📈 OVERALL SUMMARY:`);
@@ -424,6 +351,54 @@ console.log(`   Total tests: ${totalTests}`);
 console.log(`   Matches: ${matches}`);
 console.log(`   Discrepancies: ${discrepancies.length}`);
 console.log(`   Match rate: ${((matches / totalTests) * 100).toFixed(1)}%`);
+if (!options.regenerateCache && cacheHits > 0) {
+  console.log(`   Cache hits: ${cacheHits} (${((cacheHits / totalTests) * 100).toFixed(1)}%)`);
+  console.log(`   Cache misses: ${cacheMisses} (${((cacheMisses / totalTests) * 100).toFixed(1)}%)`);
+}
+
+// Critical issues (false positives)
+const falsePositives = discrepancies.filter(d => d.issue === 'FALSE_POSITIVE');
+const falseNegatives = discrepancies.filter(d => d.issue === 'FALSE_NEGATIVE');
+const expectationMismatches = discrepancies.filter(d => d.issue === 'EXPECTATION_MISMATCH');
+
+if (falsePositives.length > 0) {
+  console.log(`\n🚨 CRITICAL ISSUES (False Positives): ${falsePositives.length}`);
+  console.log('   These are ACCEPTED by our validator but REJECTED by Mermaid CLI.');
+  console.log('   This means users will get validation success but rendering will fail!');
+  falsePositives.forEach((d, i) => {
+    console.log(`\n   ${i + 1}. ${d.name} (${d.category})`);
+    console.log(`      Code: ${d.code.substring(0, 100)}${d.code.length > 100 ? '...' : ''}`);
+    console.log(`      Mermaid CLI Error: ${d.mermaidError ? d.mermaidError.substring(0, 150) : 'Unknown error'}`);
+    if (d.ourErrors.length > 0) {
+      console.log(`      Our Errors: ${d.ourErrors.map(e => e.message).join(', ')}`);
+    }
+  });
+}
+
+if (falseNegatives.length > 0) {
+  console.log(`\n⚠️  FALSE NEGATIVES: ${falseNegatives.length}`);
+  console.log('   These are REJECTED by our validator but ACCEPTED by Mermaid CLI.');
+  console.log('   Less critical but should be fixed for better compatibility.');
+  falseNegatives.forEach((d, i) => {
+    console.log(`\n   ${i + 1}. ${d.name} (${d.category})`);
+    console.log(`      Code: ${d.code.substring(0, 100)}${d.code.length > 100 ? '...' : ''}`);
+    if (d.ourErrors.length > 0) {
+      console.log(`      Our Errors: ${d.ourErrors.map(e => e.message).join(', ')}`);
+    }
+  });
+}
+
+if (expectationMismatches.length > 0) {
+  console.log(`\n📝 EXPECTATION MISMATCHES: ${expectationMismatches.length}`);
+  console.log('   These tests have incorrect expectedValid values.');
+  console.log('   The test expectations need to be updated based on actual Mermaid CLI behavior.');
+  expectationMismatches.forEach((d, i) => {
+    console.log(`\n   ${i + 1}. ${d.name} (${d.category})`);
+    console.log(`      Expected: ${d.expectedValid ? 'valid' : 'invalid'}`);
+    console.log(`      Our Result: ${d.ourResult ? 'valid' : 'invalid'}`);
+    console.log(`      Mermaid CLI: ${d.mermaidResult ? 'valid' : 'invalid'}`);
+  });
+}
 
 if (discrepancies.length === 0) {
   console.log('\n🎉 PERFECT MATCH!');
@@ -433,12 +408,32 @@ if (discrepancies.length === 0) {
   console.log('\n🚀 Validator is production-ready!');
 } else {
   console.log('\n⚠️  DISCREPANCIES FOUND:');
-  discrepancies.forEach(d => {
-    console.log(`   - ${d.name} (${d.category}): Our validator ${d.ourResult ? 'validates' : 'rejects'}, Mermaid CLI ${d.mermaidResult ? 'renders' : 'fails'}`);
-  });
-  console.log('\n🔧 These discrepancies need to be investigated and fixed.');
-  console.log('❌ Validator is NOT ready for production until discrepancies are resolved.');
+  console.log(`   Total: ${discrepancies.length}`);
+  console.log(`   Critical (False Positives): ${falsePositives.length}`);
+  console.log(`   False Negatives: ${falseNegatives.length}`);
+  console.log(`   Expectation Mismatches: ${expectationMismatches.length}`);
+  
+  if (falsePositives.length > 0) {
+    console.log('\n🔧 CRITICAL: These discrepancies MUST be fixed before production.');
+    console.log('   False positives allow invalid diagrams to pass validation.');
+  } else {
+    console.log('\n🔧 These discrepancies should be investigated and fixed.');
+  }
+  console.log('❌ Validator is NOT ready for production until critical issues are resolved.');
 }
 
 console.log('\n📝 Note: This test suite ensures 100% compatibility with Mermaid CLI.');
 console.log('   Run this before any production deployment to verify compatibility.');
+console.log(`\n📋 Test files:`);
+console.log(`   - gitgraph-tests.js: ${gitgraphTests.length} tests`);
+console.log(`   - flowchart-tests.js: ${flowchartTests.length} tests`);
+console.log(`   - sequence-tests.js: ${sequenceTests.length} tests`);
+console.log(`   - other-diagrams-tests.js: ${otherDiagramsTests.length} tests`);
+console.log(`   - edge-cases-tests.js: ${edgeCasesTests.length} tests`);
+
+if (testCases.length < allTestCases.length) {
+  console.log(`\n💡 Tip: Run without filters to test all ${allTestCases.length} cases`);
+}
+
+// Exit with appropriate code
+process.exit(discrepancies.length === 0 ? 0 : 1);
