@@ -104,3 +104,6 @@ temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Test cache files
+**/.mermaid-cli-cache.json
