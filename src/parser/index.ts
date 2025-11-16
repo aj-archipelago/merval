@@ -1093,26 +1093,64 @@ export class Parser {
       } else if (token.value === 'x-axis') {
         this.advance();
         if (this.currentToken().type === TokenType.BRACKET_OPEN) {
+          const bracketToken = this.currentToken();
           this.advance();
-          while (this.currentToken().type !== TokenType.BRACKET_CLOSE) {
-            if (this.currentToken().type === TokenType.STRING) {
-              xAxis.push(this.currentToken().value.slice(1, -1));
-            } else if (this.currentToken().type === TokenType.IDENTIFIER) {
-              const identifier = this.currentToken().value;
-              if (!this.isValidIdentifier(identifier, 'xychart-axis')) {
-                this.addError(this.currentToken(), 
-                  `Identifier '${identifier}' contains special characters and should be quoted`, 
-                  'INVALID_IDENTIFIER', 
-                  `Use "${identifier}" instead of ${identifier}`);
-              }
-              xAxis.push(identifier);
-            }
+          
+          // Check if bracket is followed by newline - Mermaid CLI doesn't allow multi-line arrays
+          while (this.currentToken().type === TokenType.WHITESPACE) {
             this.advance();
-            if (this.currentToken().type === TokenType.COMMA) {
-              this.advance();
-            }
           }
-          this.advance(); // Skip ]
+          
+          if (this.currentToken().line > bracketToken.line) {
+            this.addError(this.currentToken(), 
+              'x-axis array cannot span multiple lines. The opening bracket must be followed by values on the same line.', 
+              'INVALID_XYCHART_SYNTAX', 
+              'Use format: x-axis ["Label1", "Label2", "Label3"] on a single line.');
+          }
+          
+          // Check for empty array
+          if (this.currentToken().type === TokenType.BRACKET_CLOSE) {
+            this.addError(bracketToken, 
+              'x-axis array cannot be empty', 
+              'INVALID_XYCHART_SYNTAX', 
+              'x-axis must contain at least one label.');
+            this.advance(); // Skip ]
+          } else {
+            let lastCommaToken: Token | null = null;
+            while (this.currentToken().type !== TokenType.BRACKET_CLOSE) {
+              if (this.currentToken().type === TokenType.STRING) {
+                xAxis.push(this.currentToken().value.slice(1, -1));
+                lastCommaToken = null; // Reset comma tracking when we see a value
+              } else if (this.currentToken().type === TokenType.IDENTIFIER) {
+                const identifier = this.currentToken().value;
+                if (!this.isValidIdentifier(identifier, 'xychart-axis')) {
+                  this.addError(this.currentToken(), 
+                    `Identifier '${identifier}' contains special characters and should be quoted`, 
+                    'INVALID_IDENTIFIER', 
+                    `Use "${identifier}" instead of ${identifier}`);
+                }
+                xAxis.push(identifier);
+                lastCommaToken = null; // Reset comma tracking when we see a value
+              }
+              this.advance();
+              if (this.currentToken().type === TokenType.COMMA) {
+                lastCommaToken = this.currentToken();
+                this.advance();
+                // Check for trailing comma (comma followed immediately by closing bracket)
+                while (this.currentToken().type === TokenType.WHITESPACE) {
+                  this.advance();
+                }
+                if (this.currentToken().type === TokenType.BRACKET_CLOSE) {
+                  this.addError(lastCommaToken, 
+                    'Trailing commas are not allowed in x-axis arrays', 
+                    'INVALID_XYCHART_SYNTAX', 
+                    'Remove the trailing comma before the closing bracket.');
+                  break;
+                }
+              }
+            }
+            this.advance(); // Skip ]
+          }
         } else {
           // x-axis without brackets is invalid syntax
           this.addError(this.currentToken(), 
@@ -1172,19 +1210,59 @@ export class Parser {
         this.advance();
         
         if (this.currentToken().type === TokenType.BRACKET_OPEN) {
+          const bracketToken = this.currentToken();
           this.advance();
-          const values: number[] = [];
-          while (this.currentToken().type !== TokenType.BRACKET_CLOSE) {
-            if (this.currentToken().type === TokenType.NUMBER) {
-              values.push(parseInt(this.currentToken().value));
-            }
+          
+          // Check if bracket is followed by newline - Mermaid CLI doesn't allow multi-line arrays
+          // Skip whitespace to find the next meaningful token
+          while (this.currentToken().type === TokenType.WHITESPACE) {
             this.advance();
-            if (this.currentToken().type === TokenType.COMMA) {
-              this.advance();
-            }
           }
-          data.push({ type, values });
-          this.advance(); // Skip ]
+          
+          // Check if the next token is on a different line than the bracket
+          // This indicates a newline between the bracket and the first value
+          if (this.currentToken().line > bracketToken.line) {
+            this.addError(this.currentToken(), 
+              `${type} array cannot span multiple lines. The opening bracket must be followed by values on the same line.`, 
+              'INVALID_XYCHART_SYNTAX', 
+              `Use format: ${type} [value1, value2, value3] on a single line, or ${type} [value1, value2, value3] with values on the same line as the bracket.`);
+          }
+          
+          // Check for empty array
+          if (this.currentToken().type === TokenType.BRACKET_CLOSE) {
+            this.addError(bracketToken, 
+              `${type} array cannot be empty`, 
+              'INVALID_XYCHART_SYNTAX', 
+              `${type} must contain at least one value.`);
+            this.advance(); // Skip ]
+          } else {
+            const values: number[] = [];
+            let lastCommaToken: Token | null = null;
+            while (this.currentToken().type !== TokenType.BRACKET_CLOSE) {
+              if (this.currentToken().type === TokenType.NUMBER) {
+                values.push(parseInt(this.currentToken().value));
+                lastCommaToken = null; // Reset comma tracking when we see a value
+              }
+              this.advance();
+              if (this.currentToken().type === TokenType.COMMA) {
+                lastCommaToken = this.currentToken();
+                this.advance();
+                // Check for trailing comma (comma followed immediately by closing bracket)
+                while (this.currentToken().type === TokenType.WHITESPACE) {
+                  this.advance();
+                }
+                if (this.currentToken().type === TokenType.BRACKET_CLOSE) {
+                  this.addError(lastCommaToken, 
+                    `Trailing commas are not allowed in ${type} arrays`, 
+                    'INVALID_XYCHART_SYNTAX', 
+                    `Remove the trailing comma before the closing bracket.`);
+                  break;
+                }
+              }
+            }
+            data.push({ type, values });
+            this.advance(); // Skip ]
+          }
         }
       } else if (token.value === 'area' || token.value === 'scatter') {
         // Unsupported chart types - Mermaid CLI doesn't support these yet
