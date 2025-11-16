@@ -318,6 +318,86 @@ export const otherDiagramsTests = [
     expectedValid: false,
     category: 'xychart-errors'
   },
+  {
+    name: 'XY chart with multi-line bar array (invalid)',
+    code: `xychart-beta
+    title "U.S. GDP by State (2024)"
+    x-axis ["California", "Texas", "New York"]
+    y-axis "GDP (Billions USD)" 0 --> 4200
+    bar [
+        4103.1,
+        2709.4,
+        2297.0
+    ]`,
+    expectedValid: false,
+    category: 'xychart-errors'
+  },
+  {
+    name: 'XY chart with multi-line line array (invalid)',
+    code: `xychart-beta
+    title "Sales Data"
+    x-axis ["Jan", "Feb", "Mar"]
+    y-axis "Revenue" 0 --> 1000
+    line [
+        100,
+        200,
+        300
+    ]`,
+    expectedValid: false,
+    category: 'xychart-errors'
+  },
+  {
+    name: 'XY chart with multi-line x-axis array (invalid)',
+    code: `xychart-beta
+    title "Test"
+    x-axis [
+        "A", "B", "C"
+    ]
+    y-axis "Label" 0 --> 100
+    bar [1, 2, 3]`,
+    expectedValid: false,
+    category: 'xychart-errors'
+  },
+  {
+    name: 'XY chart with trailing comma in x-axis (invalid)',
+    code: `xychart-beta
+    title "Test"
+    x-axis ["A", "B", "C",]
+    y-axis "Label" 0 --> 100
+    bar [1, 2, 3]`,
+    expectedValid: false,
+    category: 'xychart-errors'
+  },
+  {
+    name: 'XY chart with trailing comma in bar array (invalid)',
+    code: `xychart-beta
+    title "Test"
+    x-axis ["A", "B", "C"]
+    y-axis "Label" 0 --> 100
+    bar [1, 2, 3,]`,
+    expectedValid: false,
+    category: 'xychart-errors'
+  },
+  {
+    name: 'XY chart with empty x-axis array (invalid)',
+    code: `xychart-beta
+    title "Test"
+    x-axis []
+    y-axis "Label" 0 --> 100
+    bar [1, 2, 3]`,
+    expectedValid: false,
+    category: 'xychart-errors'
+  },
+  {
+    name: 'XY chart with empty bar array (invalid)',
+    code: `xychart-beta
+    title "Test"
+    x-axis ["A", "B", "C"]
+    y-axis "Label" 0 --> 100
+    bar []`,
+    expectedValid: false,
+    category: 'xychart-errors'
+  },
 
   // JOURNEY DIAGRAMS
   {
