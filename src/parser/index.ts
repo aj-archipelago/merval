@@ -1146,6 +1146,26 @@ export class Parser {
               }
             }
           }
+        } else if (this.currentToken().type === TokenType.BRACKET_OPEN) {
+          // y-axis with brackets is invalid - y-axis must be a label with numeric range, not a list
+          this.addError(this.currentToken(), 
+            'y-axis must be followed by a string label and numeric range, not a list', 
+            'INVALID_Y_AXIS_SYNTAX', 
+            'Use format: y-axis "label" minValue --> maxValue. Lists are only supported for x-axis.');
+          // Skip the bracket and its contents to avoid parsing issues
+          this.advance(); // Skip [
+          while (!this.isAtEnd() && this.currentToken().type !== TokenType.BRACKET_CLOSE && this.currentToken().type !== TokenType.EOF) {
+            this.advance();
+          }
+          if (this.currentToken().type === TokenType.BRACKET_CLOSE) {
+            this.advance(); // Skip ]
+          }
+        } else {
+          // y-axis must be followed by a string
+          this.addError(this.currentToken(), 
+            'y-axis must be followed by a string label', 
+            'INVALID_Y_AXIS_SYNTAX', 
+            'Use format: y-axis "label" minValue --> maxValue');
         }
       } else if (token.value === 'bar' || token.value === 'line') {
         const type = token.value as 'bar' | 'line';
@@ -1174,6 +1194,27 @@ export class Parser {
         // series syntax is not supported by Mermaid CLI
         this.addError(token, `'series' syntax is not supported by Mermaid CLI`, 'UNSUPPORTED_SERIES_SYNTAX', 'Use bar or line directly instead of series "name" type chart');
         this.advance(); // Skip 'series' to avoid infinite loop
+      } else if (token.value === 'x-axis-label' || token.value === 'y-axis-label') {
+        // x-axis-label and y-axis-label are not supported by Mermaid CLI
+        this.addError(token, `'${token.value}' is not supported by Mermaid CLI`, 'UNSUPPORTED_XYCHART_SYNTAX', 'xychart-beta does not support axis labels. Use x-axis and y-axis with proper format instead.');
+        this.advance(); // Skip the unsupported token
+        // Skip the string value that follows
+        if (this.currentToken().type === TokenType.STRING) {
+          this.advance();
+        }
+      } else if (token.value === 'orientation') {
+        // orientation is not supported by Mermaid CLI
+        this.addError(token, `'orientation' is not supported by Mermaid CLI`, 'UNSUPPORTED_XYCHART_SYNTAX', 'xychart-beta does not support orientation. Use y-axis with a list for horizontal charts.');
+        this.advance(); // Skip 'orientation'
+        // Skip the value that follows (e.g., 'horizontal')
+        if (this.currentToken().type === TokenType.IDENTIFIER) {
+          this.advance();
+        }
+      } else if (token.type === TokenType.IDENTIFIER && token.value) {
+        // Unknown identifier in xychart context - likely unsupported syntax
+        // Only report if it's not whitespace or other non-meaningful tokens
+        this.addError(token, `Unknown keyword '${token.value}' in xychart-beta. This syntax is not supported by Mermaid CLI.`, 'UNSUPPORTED_XYCHART_SYNTAX', 'xychart-beta only supports: title, x-axis, y-axis, bar, and line.');
+        this.advance();
       } else {
         // Skip unknown tokens to avoid infinite loop
         this.advance();

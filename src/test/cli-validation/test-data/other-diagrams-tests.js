@@ -295,6 +295,29 @@ export const otherDiagramsTests = [
     expectedValid: false,
     category: 'xychart-errors'
   },
+  {
+    name: 'XY chart with unsupported x-axis-label, y-axis-label, and orientation',
+    code: `xychart-beta
+    title "Median Household Income - Southern States (2023)"
+    x-axis-label "Median Household Income ($)"
+    y-axis-label "State"
+    orientation horizontal
+    y-axis ["Virginia", "Georgia", "Texas", "North Carolina", "Florida", "Tennessee", "South Carolina", "Alabama", "Arkansas", "Mississippi", "Louisiana", "West Virginia"]
+    x-axis [60000, 65000, 70000, 75000, 80000, 85000, 90000, 95000, 100000, 105000]
+    bar [100000, 81000, 79000, 77000, 74000, 74000, 71000, 67000, 67000, 62000, 61000, 61000]`,
+    expectedValid: false,
+    category: 'xychart-errors'
+  },
+  {
+    name: 'XY chart with y-axis using list format (invalid)',
+    code: `xychart-beta
+    title "2024 GDP by State (in billions USD)"
+    x-axis ["GDP (billions USD)"]
+    y-axis [ "California", "Texas", "New York" ]
+    bar [4103.124, 2709.393, 2297.028]`,
+    expectedValid: false,
+    category: 'xychart-errors'
+  },
 
   // JOURNEY DIAGRAMS
   {
