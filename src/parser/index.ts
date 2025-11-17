@@ -1164,8 +1164,22 @@ export class Parser {
           const label = this.currentToken().value.slice(1, -1);
           this.advance();
           
-          // Check for invalid 'min' keyword usage
-          if (this.currentToken().value === 'min') {
+          // Check if bracket follows the label - this is invalid (y-axis "label" [list] is not allowed)
+          if (this.currentToken().type === TokenType.BRACKET_OPEN) {
+            this.addError(this.currentToken(), 
+              'y-axis cannot have a list after the label. y-axis must use format: y-axis "label" minValue --> maxValue', 
+              'INVALID_Y_AXIS_SYNTAX', 
+              'Use format: y-axis "label" minValue --> maxValue. Lists are only supported for x-axis.');
+            // Skip the bracket and its contents to avoid parsing issues
+            this.advance(); // Skip [
+            while (!this.isAtEnd() && this.currentToken().type !== TokenType.BRACKET_CLOSE && this.currentToken().type !== TokenType.EOF) {
+              this.advance();
+            }
+            if (this.currentToken().type === TokenType.BRACKET_CLOSE) {
+              this.advance(); // Skip ]
+            }
+          } else if (this.currentToken().value === 'min') {
+            // Check for invalid 'min' keyword usage
             this.addError(this.currentToken(), 
               'y-axis syntax does not support "min" keyword', 
               'INVALID_Y_AXIS_SYNTAX', 
@@ -1181,7 +1195,27 @@ export class Parser {
                 const max = parseInt(this.currentToken().value);
                 yAxis = { label, min, max };
                 this.advance();
+              } else {
+                // Arrow present but no max value
+                this.addError(this.currentToken(), 
+                  'y-axis arrow must be followed by a maximum value', 
+                  'INVALID_Y_AXIS_SYNTAX', 
+                  'Use format: y-axis "label" minValue --> maxValue');
               }
+            } else if (this.currentToken().type === TokenType.NUMBER) {
+              // Two numbers without arrow - invalid syntax
+              this.addError(this.currentToken(), 
+                'y-axis requires an arrow (-->) between min and max values', 
+                'INVALID_Y_AXIS_SYNTAX', 
+                'Use format: y-axis "label" minValue --> maxValue');
+              // Skip the second number to avoid parsing issues
+              this.advance();
+            } else {
+              // Min value present but no arrow or max value
+              this.addError(this.currentToken(), 
+                'y-axis must include arrow (-->) and maximum value after the minimum value', 
+                'INVALID_Y_AXIS_SYNTAX', 
+                'Use format: y-axis "label" minValue --> maxValue');
             }
           }
         } else if (this.currentToken().type === TokenType.BRACKET_OPEN) {

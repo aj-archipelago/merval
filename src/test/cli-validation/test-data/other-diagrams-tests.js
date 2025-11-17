@@ -398,6 +398,26 @@ export const otherDiagramsTests = [
     expectedValid: false,
     category: 'xychart-errors'
   },
+  {
+    name: 'XY chart with y-axis missing arrow (invalid)',
+    code: `xychart-beta
+    title "Test"
+    x-axis ["A", "B", "C"]
+    y-axis "Label" 0 8
+    bar [1, 2, 3]`,
+    expectedValid: false,
+    category: 'xychart-errors'
+  },
+  {
+    name: 'XY chart with y-axis label followed by list (invalid)',
+    code: `xychart-beta
+    title "GDP by State (Q2 2025)"
+    y-axis "State" ["California", "Texas", "New York"]
+    x-axis ["GDP (Millions)"]
+    bar [3377263.9, 2272749.3, 1887393.8]`,
+    expectedValid: false,
+    category: 'xychart-errors'
+  },
 
   // JOURNEY DIAGRAMS
   {
