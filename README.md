@@ -8,7 +8,7 @@ Tired of installing `@mermaid-js/mermaid-cli` and its 400+ dependencies (Puppete
 
 - ⚡ **Instant**: No CLI calls, no external processes
 - 🪶 **Zero Dependencies**: Pure JavaScript, no Puppeteer, no Chromium
-- 🎯 **100% Compatible**: Tested against Mermaid CLI v11.12.0
+- 🎯 **Mermaid compatibility**: Tested against selected Mermaid CLI v11.12.0 examples
 - 🚀 **Lightning Fast**: Direct parsing, no rendering overhead
 - 🛡️ **Type Safe**: Built with TypeScript for robust validation
 
@@ -63,7 +63,7 @@ console.log(result.errors); // [] or array of error objects
 
 ## Mermaid Version Compatibility
 
-This validator is tested against **Mermaid CLI v11.12.0** to ensure 100% compatibility. The library tracks which version it was validated against and can warn about potential compatibility issues.
+This validator is tested against **Mermaid CLI v11.12.0** against a selection of examples; full grammar compatibility is not guaranteed. The library tracks which version it was validated against and can warn about potential compatibility issues.
 
 ### Version Information
 
@@ -192,7 +192,7 @@ npm install merval
 **Merval** gives you the same validation accuracy as Mermaid CLI but with:
 - **Zero dependencies** - no Puppeteer, no Chromium, no native compilation
 - **Instant validation** - no CLI process spawning, no file I/O
-- **Same accuracy** - 100% compatible with Mermaid CLI v11.12.0
+- **Compatibility checks** - tested against selected Mermaid CLI v11.12.0 examples
 - **TypeScript support** - full type safety out of the box
 
 ## Implementation Strategy

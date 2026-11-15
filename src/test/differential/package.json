@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node issue-6.mjs" },
+  "dependencies": { "jsdom": "26.1.0", "mermaid": "11.12.0" }
+}

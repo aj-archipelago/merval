@@ -226,6 +226,20 @@ export class Lexer {
       return token;
     }
 
+    // Flowchart links with an inline label or a non-arrow endpoint.
+    if (char === '-') {
+      const rest = this.input.slice(this.position);
+      const match = rest.match(/^--[ \t]+[^\n;|]+?[ \t]+-->/) || rest.match(/^--(?:-|o|x)/);
+      if (match) {
+        const value = match[0];
+        const token = { type: TokenType.ARROW, value, line: this.line,
+          column: this.column, position: this.position };
+        this.position += value.length;
+        this.column += value.length;
+        return token;
+      }
+    }
+
     // Arrows (check longer sequences first)
     // Check for dotted arrows: -.-> or -.->>
     if (char === '-' && this.position + 3 < this.input.length && 
@@ -467,6 +481,9 @@ export class Lexer {
     
     while (this.position < this.input.length && /[a-zA-Z0-9_'-]/.test(this.input[this.position])) {
       // Don't consume hyphens that might be part of arrows
+      if (this.input[this.position] === '-' && /^--(?:-|o|x|[ \t]+[^\n;|]+?[ \t]+-->)/.test(this.input.slice(this.position))) {
+        break;
+      }
       if (this.input[this.position] === '-' && this.position + 1 < this.input.length && 
           this.input[this.position + 1] === '>') {
         break;
