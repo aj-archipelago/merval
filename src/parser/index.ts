@@ -185,14 +185,14 @@ export class Parser {
     let direction: string | undefined;
     if (this.currentToken().type === TokenType.IDENTIFIER) {
       direction = this.currentToken().value;
-      // Validate direction - Mermaid CLI only accepts TD, LR, BT, RL
-      const validDirections = ['TD', 'LR', 'BT', 'RL'];
+      // Validate supported flowchart directions
+      const validDirections = ['TD', 'TB', 'LR', 'BT', 'RL'];
       if (!validDirections.includes(direction.toUpperCase())) {
         this.addError(
           this.currentToken(),
           `Invalid flowchart direction: ${direction}`,
           'INVALID_DIRECTION',
-          `Direction must be one of: TD, LR, BT, RL`
+          `Direction must be one of: TD, TB, LR, BT, RL`
         );
       }
       this.advance();
@@ -298,6 +298,16 @@ export class Parser {
       }
       // Otherwise treat as regular identifier/node
       return this.parseNode();
+    } else if (token.type === TokenType.IDENTIFIER && token.value === '&') {
+      const previous = this.tokens[this.position - 1];
+      const next = this.peekToken();
+      if (!previous || !next || previous.line !== token.line || next.line !== token.line ||
+          ![TokenType.IDENTIFIER, TokenType.BRACKET_CLOSE, TokenType.PAREN_CLOSE, TokenType.BRACE_CLOSE, TokenType.DOUBLE_PAREN_CLOSE].includes(previous.type) ||
+          next.type !== TokenType.IDENTIFIER || next.value === '&') {
+        this.addError(token, 'Expected nodes on both sides of &', 'INVALID_NODE_GROUP');
+      }
+      this.advance();
+      return { type: 'processed', line: token.line, column: token.column } as any;
     } else if (token.type === TokenType.IDENTIFIER) {
       // Check if this is a node (followed by brackets, parens, or braces)
       const nextToken = this.peekToken();
@@ -357,11 +367,13 @@ export class Parser {
                token.type === TokenType.BRACKET_CLOSE ||
                token.type === TokenType.PAREN_OPEN || 
                token.type === TokenType.PAREN_CLOSE ||
+               token.type === TokenType.DOUBLE_PAREN_OPEN ||
+               token.type === TokenType.DOUBLE_PAREN_CLOSE ||
                token.type === TokenType.BRACE_OPEN || 
                token.type === TokenType.BRACE_CLOSE) {
-      // Skip brackets, parens, braces (used in styling)
+      this.addError(token, `Unexpected delimiter ${token.value}`, 'UNEXPECTED_DELIMITER');
       this.advance();
-      return null;
+      return { type: 'processed', line: token.line, column: token.column } as any;
     }
     
     return null;
@@ -407,6 +419,43 @@ export class Parser {
 
     let label: string | undefined;
     let shape: 'rect' | 'round' | 'diamond' | 'circle' = 'rect';
+
+    // Compound shapes use paired delimiters, which must close in reverse order.
+    const first = this.currentToken();
+    const second = this.peekToken();
+    const pairs: Partial<Record<TokenType, TokenType>> = {
+      [TokenType.BRACKET_OPEN]: TokenType.BRACKET_CLOSE,
+      [TokenType.PAREN_OPEN]: TokenType.PAREN_CLOSE,
+      [TokenType.BRACE_OPEN]: TokenType.BRACE_CLOSE
+    };
+    const isCompound = second && ((first.type === TokenType.BRACKET_OPEN &&
+      (second.type === TokenType.PAREN_OPEN || second.type === TokenType.BRACKET_OPEN)) ||
+      (first.type === TokenType.PAREN_OPEN && second.type === TokenType.BRACKET_OPEN) ||
+      (first.type === TokenType.BRACE_OPEN && second.type === TokenType.BRACE_OPEN)) &&
+      first.line === second.line && first.position + first.value.length === second.position;
+    const isFlag = first.type === TokenType.IDENTIFIER && first.value === '>';
+    const isAttribute = first.type === TokenType.IDENTIFIER && first.value === '@' && second?.type === TokenType.BRACE_OPEN;
+    if (isCompound || isFlag || isAttribute) {
+      const closing: TokenType[] = isFlag ? [TokenType.BRACKET_CLOSE] :
+        isAttribute ? [TokenType.BRACE_CLOSE] : [pairs[second!.type]!, pairs[first.type]!];
+      if (isAttribute) { this.advance(); this.advance(); }
+      else { this.advance(); if (isCompound) this.advance(); }
+      const parts: string[] = [];
+      while (!this.isAtEnd() && this.currentToken().line === idToken.line &&
+             this.currentToken().type !== closing[0] &&
+             ![TokenType.ARROW, TokenType.DOTTED_ARROW, TokenType.THICK_ARROW].includes(this.currentToken().type)) {
+        parts.push(this.currentToken().value);
+        this.advance();
+      }
+      if (!parts.length) this.addError(first, 'Empty node labels are not allowed', 'EMPTY_NODE_LABEL');
+      for (const expected of closing) {
+        if (this.currentToken().type === expected) this.advance();
+        else { this.addError(this.currentToken(), 'Expected closing node delimiter', 'PARSE_ERROR'); break; }
+      }
+      label = parts.join(' ');
+      shape = first.type === TokenType.PAREN_OPEN ? 'round' : first.type === TokenType.BRACE_OPEN ? 'diamond' : 'rect';
+      return { type: 'node', line: idToken.line, column: idToken.column, id, label, shape };
+    }
 
     // Check if there's a shape/label after the node ID
     if (this.currentToken().type === TokenType.BRACKET_OPEN) {
@@ -612,7 +661,8 @@ export class Parser {
     this.advance(); // Skip arrow
     this.linkCount++; // Count this as a link
 
-    let label: string | undefined;
+    let label: string | undefined = /^--[ \t]+/.test(arrowToken.value)
+      ? arrowToken.value.slice(2, -3).trim() : undefined;
     if (this.currentToken().type === TokenType.PIPE) {
       this.advance(); // Skip |
       if (this.currentToken().type === TokenType.STRING) {
@@ -636,7 +686,8 @@ export class Parser {
     }
 
     // Check if there's a valid destination node
-    if (this.isAtEnd() || this.currentToken().type === TokenType.EOF) {
+    if (this.isAtEnd() || this.currentToken().line !== arrowToken.line ||
+        this.currentToken().type !== TokenType.IDENTIFIER || this.currentToken().value === '&') {
       this.addError(arrowToken, 'Arrow must have a destination node', 'INCOMPLETE_ARROW', 'Add a node after the arrow');
       return {
         type: 'arrow',
@@ -920,7 +971,7 @@ export class Parser {
     }
     
     // Handle both IDENTIFIER and STRING tokens for participant names
-    const to = toToken.type === TokenType.STRING 
+    let to = toToken.type === TokenType.STRING
       ? toToken.value.slice(1, -1) 
       : toToken.value;
     
@@ -929,14 +980,24 @@ export class Parser {
     
     this.advance();
 
-    // Skip colon if present
-    if (this.currentToken().type === TokenType.COLON) {
+    // Participant names may contain spaces; consume the rest of the destination
+    // before requiring the message separator on this line.
+    while (!this.isAtEnd() && this.currentToken().line === toToken.line &&
+           this.currentToken().type !== TokenType.COLON) {
+      to += ' ' + this.currentToken().value;
       this.advance();
+    }
+
+    // Sequence messages require a colon on the same line as the destination.
+    if (this.currentToken().type === TokenType.COLON && this.currentToken().line === toToken.line) {
+      this.advance();
+    } else {
+      this.addError(this.currentToken(), 'Expected colon before message text', 'MISSING_MESSAGE_COLON');
     }
 
     // Collect the rest of the line as the message
     let message = '';
-    const startLine = this.currentToken().line;
+    const startLine = toToken.line;
     const messageParts: string[] = [];
     
     while (!this.isAtEnd() && this.currentToken().line === startLine && this.currentToken().type !== TokenType.EOF) {
@@ -1470,7 +1531,9 @@ export class Parser {
       const nextNode = nodes[i + 1];
       
       // If we have two consecutive nodes on the same line without an arrow between them, that's an error
-      if (currentNode.type === 'node' && nextNode.type === 'node' && currentNode.line === nextNode.line) {
+      if (currentNode.type === 'node' && nextNode.type === 'node' && currentNode.line === nextNode.line &&
+          !this.tokens.some(token => token.line === currentNode.line && token.value === '&' &&
+            token.column > currentNode.column && token.column < nextNode.column)) {
         this.addError(
           { type: TokenType.IDENTIFIER, value: nextNode.id || '', line: nextNode.line, column: nextNode.column, position: 0 },
           `Adjacent nodes '${currentNode.id}' and '${nextNode.id}' on same line without arrow connection`,

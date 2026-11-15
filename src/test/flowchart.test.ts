@@ -10,6 +10,29 @@ export const flowchartTests = createTestSuite(
   'Flowchart Tests',
   'Tests for flowchart diagram validation including nodes, arrows, directions, and styling',
   [
+    // Regression cases for issue #6, including malformed counterparts.
+    ...[
+      ['TB direction', 'flowchart TB\n A --> B', true],
+      ['plain link', 'graph TD\n A --- B', true],
+      ['circle link', 'graph TD\n A --o B', true],
+      ['cross link', 'graph TD\n A --x B', true],
+      ['inline link label', 'graph TD\n A -- text --> B', true],
+      ['grouped nodes', 'flowchart LR\n A & B --> C & D', true],
+      ['cylinder', 'graph TD\n A[(DB)]', true],
+      ['stadium', 'graph TD\n A([Start])', true],
+      ['subroutine', 'graph TD\n A[[Sub]]', true],
+      ['hexagon', 'graph TD\n A{{Hex}}', true],
+      ['flag', 'graph TD\n A>Flag]', true],
+      ['shape attribute', 'flowchart LR\n A@{ shape: rect }', true],
+      ['missing destination before delimiter', 'graph TD\n A --> ]', false],
+      ['stray closing bracket', 'graph TD\n A --> B]', false],
+      ['unclosed cylinder', 'graph TD\n A[(DB]', false],
+      ['unclosed subroutine', 'graph TD\n A[[Sub]', false],
+      ['missing grouped node', 'graph TD\n A & --> B', false]
+    ].map(([name, input, expected]) => createTestCase(
+      name as string, input as string, expected as boolean, { expectedDiagramType: 'flowchart' }
+    )),
+
     // Basic valid flowcharts
     createTestCase(
       'Simple two-node flowchart',

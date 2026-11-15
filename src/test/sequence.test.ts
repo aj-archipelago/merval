@@ -56,6 +56,11 @@ export const sequenceTests = createTestSuite(
       { expectedDiagramType: 'sequence' }
     ),
 
+    createTestCase('Message missing colon', 'sequenceDiagram\n A->>B Hello', false,
+      { expectedDiagramType: 'sequence' }),
+    createTestCase('Message missing colon before next line', 'sequenceDiagram\n A->>B Hello\n B->>A: Hi', false,
+      { expectedDiagramType: 'sequence' }),
+
     // Different arrow types
     createTestCase(
       'All arrow types',
